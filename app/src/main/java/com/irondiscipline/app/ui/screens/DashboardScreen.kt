@@ -55,8 +55,12 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.WarningAmber
+import com.irondiscipline.app.timer.ProTimerDialog
+import com.irondiscipline.app.timer.ProTimerManager
+import com.irondiscipline.app.timer.ProTimerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -167,8 +171,15 @@ fun DashboardScreen(
     var showCreatePasswordDialog by remember { mutableStateOf(false) }
     var showLockPhoneAppsDialog by remember { mutableStateOf(false) }
     var showScreenShareDialog by remember { mutableStateOf(false) }
+    var showProTimerDialog by remember { mutableStateOf(false) }
     var installedAppsList by remember { mutableStateOf<List<AppLockerItem>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(false) }
+
+    if (showProTimerDialog) {
+        ProTimerDialog(
+            onDismiss = { showProTimerDialog = false }
+        )
+    }
 
     if (showScreenShareDialog) {
         ScreenShareDialog(
@@ -303,6 +314,9 @@ fun DashboardScreen(
             },
             onLiveScreenShareClick = {
                 showScreenShareDialog = true
+            },
+            onProTimerClick = {
+                showProTimerDialog = true
             }
         )
 
@@ -1208,7 +1222,8 @@ private fun MasterSecurityVaultCard(
     lockedAppsCount: Int,
     onManagePasswordClick: () -> Unit,
     onLockPhoneAppsClick: () -> Unit,
-    onLiveScreenShareClick: () -> Unit
+    onLiveScreenShareClick: () -> Unit,
+    onProTimerClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1367,6 +1382,65 @@ private fun MasterSecurityVaultCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = shareButtonText,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Button 4: Pro Countdown Timer (with .jellyElastic())
+            val proTimerState by ProTimerManager.timerState.collectAsState()
+            val proRemainingMs by ProTimerManager.remainingMs.collectAsState()
+            val proOvertimeMs by ProTimerManager.overtimeMs.collectAsState()
+
+            val timerButtonText = when (proTimerState) {
+                ProTimerState.RUNNING -> "⏱️ Timer Running: ${ProTimerManager.formatTime(proRemainingMs)} — Tap to Open"
+                ProTimerState.PAUSED -> "⏸️ Timer Paused: ${ProTimerManager.formatTime(proRemainingMs)} — Tap to Open"
+                ProTimerState.FINISHED_RINGING -> "🔔 TIMER FINISHED (+${ProTimerManager.formatOvertime(proOvertimeMs)}) — Tap to Stop"
+                ProTimerState.IDLE -> "⏱️ Pro Countdown Timer (Topics & 10+ Features)"
+            }
+
+            val isTimerRunning = proTimerState == ProTimerState.RUNNING
+            val isTimerRinging = proTimerState == ProTimerState.FINISHED_RINGING
+
+            Button(
+                onClick = onProTimerClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .jellyElastic(baseCornerRadius = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = when {
+                        isTimerRinging -> Color(0xFF330C15)
+                        isTimerRunning -> Color(0xFF0E251E)
+                        else -> Color(0xFF111927)
+                    },
+                    contentColor = Color(0xFFFFFFFF)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    when {
+                        isTimerRinging -> Color(0xFFFF2E54)
+                        isTimerRunning -> Color(0xFF00E676)
+                        else -> Color(0xFF38BDF8).copy(alpha = 0.6f)
+                    }
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Timer,
+                    contentDescription = null,
+                    tint = when {
+                        isTimerRinging -> Color(0xFFFF2E54)
+                        isTimerRunning -> Color(0xFF00E676)
+                        else -> Color(0xFF38BDF8)
+                    },
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = timerButtonText,
                     fontWeight = FontWeight.Black,
                     fontSize = 13.sp
                 )

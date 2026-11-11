@@ -410,6 +410,14 @@ class AlarmRingingActivity : ComponentActivity() {
                 } catch (_: Exception) {}
             }
         }
+
+        /**
+         * Math question generator enforcing ONLY Addition (+) and Subtraction (-)
+         * with strictly positive integer answers (> 0).
+         */
+        fun generatePlusMinusMathQuestion(): MathProblem {
+            return ActiveAlarmSessionState.generateHardMathProblem()
+        }
     }
 }
 
@@ -1044,7 +1052,7 @@ fun AlarmRingingScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "${currentProblem.text} = ?",
+                                    text = if (currentProblem.text.endsWith("?")) currentProblem.text else "${currentProblem.text} = ?",
                                     color = Color.White,
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Black,

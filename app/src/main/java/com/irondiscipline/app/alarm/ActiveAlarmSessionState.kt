@@ -63,16 +63,48 @@ object ActiveAlarmSessionState {
     }
 
     /**
-     * Generates challenging multi-digit math equations e.g. (14 × 7) + 39.
+     * Generates math problems using ONLY Addition (+) and Subtraction (-) operations
+     * with strictly positive integer answers (> 0).
+     * Randomly alternates between single-step and two-step + / - patterns.
      */
     fun generateHardMathProblem(): MathProblem {
-        val a = Random.nextInt(12, 20) // 12..19
-        val b = Random.nextInt(6, 15)  // 6..14
-        val c = Random.nextInt(18, 65) // 18..64
-        return when (Random.nextInt(0, 3)) {
-            0 -> MathProblem("($a × $b) + $c", (a * b) + c)
-            1 -> MathProblem("($a × $b) - $c", (a * b) - c)
-            else -> MathProblem("$c + ($a × $b)", c + (a * b))
+        val pattern = Random.nextInt(0, 4)
+        return when (pattern) {
+            0 -> {
+                // Single-step Addition (+): a in 15..75, b in 12..65
+                val a = (15..75).random()
+                val b = (12..65).random()
+                MathProblem("$a + $b", a + b)
+            }
+            1 -> {
+                // Single-step Subtraction (-): a in 35..95, b in 11..(a - 5) ensuring positive answer (> 0)
+                val a = (35..95).random()
+                val maxB = (a - 5).coerceAtLeast(11)
+                val b = (11..maxB).random()
+                MathProblem("$a - $b", a - b)
+            }
+            2 -> {
+                // Two-step Addition and Subtraction (e.g., a + b - c)
+                val a = (20..65).random()
+                val b = (15..55).random()
+                val sum = a + b
+                val maxC = (sum - 10).coerceAtLeast(10)
+                val c = (10..maxC).random()
+                MathProblem("$a + $b - $c", sum - c)
+            }
+            else -> {
+                // Two-step Subtraction and Addition (e.g., a - b + c)
+                val a = (40..90).random()
+                val maxB = (a - 10).coerceAtLeast(10)
+                val b = (10..maxB).random()
+                val c = (12..50).random()
+                MathProblem("$a - $b + $c", (a - b) + c)
+            }
         }
     }
+
+    /**
+     * Alias helper for generating Plus / Minus math questions.
+     */
+    fun generatePlusMinusMathQuestion(): MathProblem = generateHardMathProblem()
 }

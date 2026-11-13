@@ -73,10 +73,12 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,6 +95,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -102,6 +105,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.irondiscipline.app.FocusDeviceAdminReceiver
 import com.irondiscipline.app.domain.model.AppLockerItem
 import com.irondiscipline.app.domain.model.PermissionStatusState
@@ -126,7 +131,10 @@ import com.irondiscipline.app.ui.theme.LuxuryTacticalEmerald
 import com.irondiscipline.app.util.CoreAppQuotaStatus
 import com.irondiscipline.app.util.CoreTargetApp
 import com.irondiscipline.app.util.PermissionHelper
+import com.irondiscipline.app.util.RealtimeQuotaManager
 import com.irondiscipline.app.util.RealtimeQuotaSnapshot
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // Obsidian Cyber-Discipline Color Palette
@@ -169,6 +177,37 @@ fun DashboardScreen(
     onConfirmUninstall: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val quotaManager = remember(context) { RealtimeQuotaManager.getInstance(context) }
+    val penaltyPrefs = remember(context) {
+        context.getSharedPreferences(RealtimeQuotaManager.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    var liveNowEpochMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    // Recalculate wall-clock lock remaining time every 500ms while visible and immediately on resume
+    LaunchedEffect(quotaManager) {
+        while (isActive) {
+            val nowMs = System.currentTimeMillis()
+            liveNowEpochMs = nowMs
+            quotaManager.refreshSnapshotNow(nowMs)
+            delay(500L)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, quotaManager) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val nowMs = System.currentTimeMillis()
+                liveNowEpochMs = nowMs
+                quotaManager.refreshSnapshotNow(nowMs)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val isTestMode = realtimeQuotaState.isTestModeActive
@@ -291,7 +330,7 @@ fun DashboardScreen(
         )
 
         for (target in CoreTargetApp.entries) {
-            val status = realtimeQuotaState.statusFor(target.appKey) ?: CoreAppQuotaStatus(
+            val baseStatus = realtimeQuotaState.statusFor(target.appKey) ?: CoreAppQuotaStatus(
                 target = target,
                 usedSeconds = 0,
                 limitSeconds = if (isTestMode) 60 else 1800,
@@ -300,6 +339,30 @@ fun DashboardScreen(
                 lockedUntilEpochMs = 0L,
                 lockRemainingMillis = 0L
             )
+            val wallClockLockMs = target.packageNames.maxOfOrNull { pkg ->
+                RealtimeQuotaManager.getRemainingPenaltyLockMillisAt(
+                    prefs = penaltyPrefs,
+                    packageName = pkg,
+                    nowEpochMs = liveNowEpochMs
+                )
+            } ?: 0L
+            val effectiveLockMs = maxOf(
+                wallClockLockMs,
+                if (baseStatus.lockedUntilEpochMs > liveNowEpochMs) {
+                    baseStatus.lockedUntilEpochMs - liveNowEpochMs
+                } else {
+                    0L
+                }
+            )
+            val status = if (effectiveLockMs > 0L) {
+                baseStatus.copy(
+                    isLocked = true,
+                    lockRemainingMillis = effectiveLockMs,
+                    remainingLockSeconds = ((effectiveLockMs + 999L) / 1000L).toInt()
+                )
+            } else {
+                baseStatus
+            }
 
             PremiumAppDisciplineCard(
                 status = status,

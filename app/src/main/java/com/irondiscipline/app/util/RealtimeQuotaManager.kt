@@ -2,9 +2,16 @@ package com.irondiscipline.app.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.irondiscipline.app.data.local.IronDisciplineDatabase
+import com.irondiscipline.app.data.local.entities.DailyUsageLog
+import com.irondiscipline.app.service.PenaltyLockScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
 
@@ -87,14 +94,12 @@ data class CoreAppQuotaStatus(
         get() = "${limitSeconds / 60}m"
 
     val formattedLockRemainingHhMmSs: String
-        get() = if (remainingLockSeconds > 0) {
-            RealtimeQuotaManager.formatSecondsToHhMmSs(remainingLockSeconds)
-        } else {
-            RealtimeQuotaManager.formatMillisToHhMmSs(lockRemainingMillis)
-        }
+        get() = RealtimeQuotaManager.formatMillisToHhMmSs(lockRemainingMillis)
 
     val progressFraction: Float
-        get() = if (limitSeconds > 0) {
+        get() = if (isLocked) {
+            1f
+        } else if (limitSeconds > 0) {
             (usedSeconds.toFloat() / limitSeconds.toFloat()).coerceIn(0f, 1f)
         } else 1f
 }
@@ -105,7 +110,7 @@ data class RealtimeQuotaSnapshot(
     val coreStatuses: List<CoreAppQuotaStatus> = emptyList()
 ) {
     val anyAppLocked: Boolean
-        get() = coreStatuses.any { it.isLocked || it.remainingLockSeconds > 0 }
+        get() = coreStatuses.any { it.isLocked || it.lockRemainingMillis > 0L }
 
     fun statusFor(appKey: String): CoreAppQuotaStatus? {
         return coreStatuses.firstOrNull { it.target.appKey == appKey }
@@ -113,13 +118,16 @@ data class RealtimeQuotaSnapshot(
 }
 
 /**
- * Clean, thread-safe Reader & Snapshot publisher for "iron_discipline_prefs".
- * AppBlockerAccessibilityService is the ONLY writer of used_seconds_<appKey> during active usage,
- * guaranteeing zero race conditions, zero fluctuations, and strictly monotonic countdowns.
+ * Authoritative reader & wall-clock reconciler for "iron_discipline_prefs".
+ * 5-hour penalty countdowns are always derived from `lockUntilEpochMs - System.currentTimeMillis()`,
+ * never manually decremented, so lock timers keep running cleanly through screen-off sleep and app closes.
  */
 class RealtimeQuotaManager private constructor(context: Context) {
 
-    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences(
+    private val appContext: Context = context.applicationContext
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val prefs: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE
     )
@@ -128,6 +136,7 @@ class RealtimeQuotaManager private constructor(context: Context) {
     val quotaSnapshotFlow: StateFlow<RealtimeQuotaSnapshot> = _quotaSnapshotFlow.asStateFlow()
 
     init {
+        reconcilePenaltyLocksAndResetExpired()
         publishSnapshot()
     }
 
@@ -149,26 +158,26 @@ class RealtimeQuotaManager private constructor(context: Context) {
     }
 
     fun getLockedUntilEpochMs(appKey: String): Long {
-        return prefs.getLong(PREFIX_LOCKED_UNTIL + appKey, 0L)
+        return resolveLockUntilEpochMs(prefs, appKey)
     }
 
     fun getRemainingLockSeconds(appKey: String): Int {
-        return prefs.getInt(PREFIX_REMAINING_LOCK_SEC + appKey, 0).coerceAtLeast(0)
+        val remMs = getRemainingPenaltyLockMillisAt(prefs, appKey, System.currentTimeMillis())
+        return if (remMs > 0L) ((remMs + 999L) / 1000L).toInt() else 0
     }
 
-    fun isAppLocked(appKey: String): Boolean {
-        val remainingLockSec = getRemainingLockSeconds(appKey)
+    fun isAppLocked(appKey: String, nowEpochMs: Long = System.currentTimeMillis()): Boolean {
+        reconcilePenaltyLocksAndResetExpired(nowEpochMs)
+        val remMs = getRemainingPenaltyLockMillisAt(prefs, appKey, nowEpochMs)
+        if (remMs > 0L) return true
         val used = getUsedSeconds(appKey)
         val limit = getAppLimitSeconds(appKey)
-        return remainingLockSec > 0 || used >= limit
+        return used >= limit
     }
 
-    fun isAppLocked(appKey: String, nowEpochMs: Long): Boolean {
-        return isAppLocked(appKey)
-    }
-
-    fun isAnyAppLocked(): Boolean {
-        return CoreTargetApp.entries.any { isAppLocked(it.appKey) }
+    fun isAnyAppLocked(nowEpochMs: Long = System.currentTimeMillis()): Boolean {
+        reconcilePenaltyLocksAndResetExpired(nowEpochMs)
+        return CoreTargetApp.entries.any { isAppLocked(it.appKey, nowEpochMs) }
     }
 
     fun incrementUsedSecond(appKey: String, nowEpochMs: Long = System.currentTimeMillis()): Int {
@@ -176,22 +185,161 @@ class RealtimeQuotaManager private constructor(context: Context) {
     }
 
     /**
-     * Publishes latest SharedPreferences state to the UI StateFlow.
-     * Guaranteed read-only; never mutates or fluctuates used_seconds.
+     * Persists a 5-hour wall-clock lock timestamp immediately to SharedPreferences (.commit) and Room DB,
+     * and schedules an exact AlarmManager unlock wakeup at [lockUntilEpochMs].
      */
     @Synchronized
-    fun publishSnapshot() {
+    fun triggerFiveHourPenaltyLock(
+        appKeyOrPackage: String,
+        nowEpochMs: Long = System.currentTimeMillis()
+    ): Long {
+        val target = CoreTargetApp.fromPackageName(appKeyOrPackage)
+            ?: CoreTargetApp.fromAppKey(appKeyOrPackage)
+        val canonicalKey = target?.appKey ?: appKeyOrPackage.trim().lowercase()
+
+        val existingUntil = resolveLockUntilEpochMs(prefs, canonicalKey)
+        if (existingUntil > nowEpochMs) {
+            return existingUntil
+        }
+
+        val lockUntilEpochMs = nowEpochMs + FIVE_HOURS_MS
+        val editor = prefs.edit()
+            .putLong(PREFIX_LOCKED_UNTIL + canonicalKey, lockUntilEpochMs)
+            .putLong(PREFIX_PENALTY_LOCK_UNTIL + canonicalKey, lockUntilEpochMs)
+            .putInt(PREFIX_REMAINING_LOCK_SEC + canonicalKey, 0)
+
+        target?.packageNames?.forEach { pkg ->
+            editor.putLong(PREFIX_PENALTY_LOCK_UNTIL + pkg, lockUntilEpochMs)
+        }
+        editor.commit()
+
+        PenaltyLockScheduler.schedulePenaltyUnlockAlarm(appContext, canonicalKey, lockUntilEpochMs)
+        persistPenaltyLockToRoomAsync(canonicalKey, getUsedSeconds(canonicalKey).toLong(), lockUntilEpochMs, nowEpochMs)
+        publishSnapshot(nowEpochMs)
+        return lockUntilEpochMs
+    }
+
+    /**
+     * Reconciles all core target apps against hardware wall-clock time (`System.currentTimeMillis()`).
+     * Automatically clears expired locks, resets accumulated daily usage to 0 for a fresh session,
+     * and updates Room DB + AlarmManager.
+     *
+     * @return List of canonical appKeys unlocked during this pass.
+     */
+    @Synchronized
+    fun reconcilePenaltyLocksAndResetExpired(nowEpochMs: Long = System.currentTimeMillis()): List<String> {
+        val unlockedKeys = mutableListOf<String>()
+
+        for (target in CoreTargetApp.entries) {
+            val key = target.appKey
+            var lockUntil = resolveLockUntilEpochMs(prefs, key)
+
+            // Backwards-compatibility migration: if upgrading mid-lock from legacy remaining_lock_seconds
+            val legacyRemSec = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+            if (lockUntil <= 0L && legacyRemSec > 0) {
+                lockUntil = nowEpochMs + (legacyRemSec.toLong() * 1000L)
+                val migrateEditor = prefs.edit()
+                    .putLong(PREFIX_LOCKED_UNTIL + key, lockUntil)
+                    .putLong(PREFIX_PENALTY_LOCK_UNTIL + key, lockUntil)
+                    .putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+                target.packageNames.forEach { pkg ->
+                    migrateEditor.putLong(PREFIX_PENALTY_LOCK_UNTIL + pkg, lockUntil)
+                }
+                migrateEditor.commit()
+                PenaltyLockScheduler.schedulePenaltyUnlockAlarm(appContext, key, lockUntil)
+            }
+
+            if (lockUntil > 0L && nowEpochMs >= lockUntil) {
+                val editor = prefs.edit()
+                clearPenaltyStateInEditor(editor, key, target.packageNames, resetUsage = true)
+                editor.commit()
+
+                PenaltyLockScheduler.cancelPenaltyUnlockAlarm(appContext, key)
+                clearExpiredLockInRoomAsync(key, target.packageNames)
+                unlockedKeys.add(key)
+            }
+        }
+
+        return unlockedKeys
+    }
+
+    private fun clearPenaltyStateInEditor(
+        editor: SharedPreferences.Editor,
+        canonicalKey: String,
+        packageNames: List<String>,
+        resetUsage: Boolean
+    ) {
+        editor.putLong(PREFIX_LOCKED_UNTIL + canonicalKey, 0L)
+            .putLong(PREFIX_PENALTY_LOCK_UNTIL + canonicalKey, 0L)
+            .putInt(PREFIX_REMAINING_LOCK_SEC + canonicalKey, 0)
+        packageNames.forEach { pkg ->
+            editor.putLong(PREFIX_PENALTY_LOCK_UNTIL + pkg, 0L)
+        }
+        if (resetUsage) {
+            editor.putInt(PREFIX_USED_SEC + canonicalKey, 0)
+                .putLong(PREFIX_USED_MS + canonicalKey, 0L)
+        }
+    }
+
+    private fun persistPenaltyLockToRoomAsync(
+        canonicalKey: String,
+        usedSeconds: Long,
+        lockedUntilEpochMs: Long,
+        nowEpochMs: Long
+    ) {
+        ioScope.launch {
+            try {
+                val dao = IronDisciplineDatabase.getInstance(appContext).disciplineDao()
+                val todayStr = LocalDate.now().toString()
+                val existing = dao.getUsageLogForPackage(todayStr, canonicalKey)
+                dao.upsertUsageLog(
+                    DailyUsageLog(
+                        dateString = todayStr,
+                        packageName = canonicalKey,
+                        usedSeconds = maxOf(usedSeconds, existing?.usedSeconds ?: 0L),
+                        blockedAttemptsCount = existing?.blockedAttemptsCount ?: 0,
+                        lockedUntilEpochMs = lockedUntilEpochMs,
+                        lastUpdatedEpochMs = nowEpochMs
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun clearExpiredLockInRoomAsync(canonicalKey: String, packageNames: List<String>) {
+        ioScope.launch {
+            try {
+                val dao = IronDisciplineDatabase.getInstance(appContext).disciplineDao()
+                dao.clearLockAndResetUsageAllDatesForPackage(canonicalKey)
+                for (pkg in packageNames) {
+                    dao.clearLockAndResetUsageAllDatesForPackage(pkg)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Publishes latest SharedPreferences state to the UI StateFlow after reconciling
+     * any expired wall-clock penalty locks. Never mutates active usage counts.
+     */
+    @Synchronized
+    fun publishSnapshot(nowEpochMs: Long = System.currentTimeMillis()) {
+        reconcilePenaltyLocksAndResetExpired(nowEpochMs)
         val isTestMode = isTestModeActive()
         val limit = if (isTestMode) TEST_MODE_LIMIT_SECONDS else NORMAL_MODE_LIMIT_SECONDS
 
         val statuses = CoreTargetApp.entries.map { target ->
             val key = target.appKey
             val used = prefs.getInt(PREFIX_USED_SEC + key, 0).coerceAtLeast(0)
-            val remainingLockSec = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + key, 0).coerceAtLeast(0)
-            val lockedUntil = prefs.getLong(PREFIX_LOCKED_UNTIL + key, 0L)
-            val isLocked = remainingLockSec > 0 || used >= limit
+            val lockedUntil = resolveLockUntilEpochMs(prefs, key)
+            val lockRemainingMs = if (lockedUntil > nowEpochMs) lockedUntil - nowEpochMs else 0L
+            val remainingLockSec = if (lockRemainingMs > 0L) {
+                ((lockRemainingMs + 999L) / 1000L).toInt()
+            } else {
+                0
+            }
+            val isLocked = lockRemainingMs > 0L || used >= limit
             val remainingSec = if (isLocked) 0 else (limit - used).coerceAtLeast(0)
-            val lockRemainingMs = remainingLockSec * 1000L
 
             CoreAppQuotaStatus(
                 target = target,
@@ -213,11 +361,11 @@ class RealtimeQuotaManager private constructor(context: Context) {
     }
 
     fun refreshSnapshotNow(nowEpochMs: Long = System.currentTimeMillis()) {
-        publishSnapshot()
+        publishSnapshot(nowEpochMs)
     }
 
     fun checkMidnightResetIfNeeded(nowEpochMs: Long = System.currentTimeMillis()): Boolean {
-        publishSnapshot()
+        publishSnapshot(nowEpochMs)
         return false
     }
 
@@ -228,20 +376,7 @@ class RealtimeQuotaManager private constructor(context: Context) {
     @Synchronized
     fun activateGlobalOneMinuteTestMode() {
         if (isAnyAppLocked()) return
-
-        val editor = prefs.edit()
-            .putBoolean(KEY_IS_TEST_MODE, true)
-            .putBoolean("is_test_mode", true)
-
-        for (target in CoreTargetApp.entries) {
-            val key = target.appKey
-            editor.putInt(PREFIX_LIMIT_SEC + key, TEST_MODE_LIMIT_SECONDS)
-            editor.putInt(PREFIX_USED_SEC + key, 0)
-            editor.putLong(PREFIX_LOCKED_UNTIL + key, 0L)
-            editor.putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
-        }
-        editor.commit()
-        publishSnapshot()
+        applyGlobalLimitMode(isTestMode = true, limitSeconds = TEST_MODE_LIMIT_SECONDS)
     }
 
     /**
@@ -251,17 +386,18 @@ class RealtimeQuotaManager private constructor(context: Context) {
     @Synchronized
     fun switchBackToNormalThirtyMinModeAndReset() {
         if (isAnyAppLocked()) return
+        applyGlobalLimitMode(isTestMode = false, limitSeconds = NORMAL_MODE_LIMIT_SECONDS)
+    }
 
+    private fun applyGlobalLimitMode(isTestMode: Boolean, limitSeconds: Int) {
         val editor = prefs.edit()
-            .putBoolean(KEY_IS_TEST_MODE, false)
-            .putBoolean("is_test_mode", false)
+            .putBoolean(KEY_IS_TEST_MODE, isTestMode)
+            .putBoolean("is_test_mode", isTestMode)
 
         for (target in CoreTargetApp.entries) {
             val key = target.appKey
-            editor.putInt(PREFIX_LIMIT_SEC + key, NORMAL_MODE_LIMIT_SECONDS)
-            editor.putInt(PREFIX_USED_SEC + key, 0)
-            editor.putLong(PREFIX_LOCKED_UNTIL + key, 0L)
-            editor.putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+            editor.putInt(PREFIX_LIMIT_SEC + key, limitSeconds)
+            clearPenaltyStateInEditor(editor, key, target.packageNames, resetUsage = true)
         }
         editor.commit()
         publishSnapshot()
@@ -276,10 +412,8 @@ class RealtimeQuotaManager private constructor(context: Context) {
 
         val editor = prefs.edit()
         for (target in CoreTargetApp.entries) {
-            val key = target.appKey
-            editor.putInt(PREFIX_USED_SEC + key, 0)
-            editor.putLong(PREFIX_LOCKED_UNTIL + key, 0L)
-            editor.putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+            clearPenaltyStateInEditor(editor, target.appKey, target.packageNames, resetUsage = true)
+            PenaltyLockScheduler.cancelPenaltyUnlockAlarm(appContext, target.appKey)
         }
         editor.commit()
         publishSnapshot()
@@ -287,22 +421,42 @@ class RealtimeQuotaManager private constructor(context: Context) {
 
     @Synchronized
     fun resetAppTimerAndLock(appKey: String) {
-        if (getRemainingLockSeconds(appKey) > 0) return
+        if (getRemainingPenaltyLockMillis(prefs, appKey) > 0L) return
 
         val isTest = isTestModeActive()
         val limit = if (isTest) TEST_MODE_LIMIT_SECONDS else NORMAL_MODE_LIMIT_SECONDS
-        prefs.edit()
-            .putInt(PREFIX_USED_SEC + appKey, 0)
-            .putInt(PREFIX_LIMIT_SEC + appKey, limit)
-            .putLong(PREFIX_LOCKED_UNTIL + appKey, 0L)
-            .putInt(PREFIX_REMAINING_LOCK_SEC + appKey, 0)
-            .commit()
+        val target = CoreTargetApp.fromAppKey(appKey) ?: CoreTargetApp.fromPackageName(appKey)
+        val canonicalKey = target?.appKey ?: appKey
+        val editor = prefs.edit()
+            .putInt(PREFIX_LIMIT_SEC + canonicalKey, limit)
+        clearPenaltyStateInEditor(
+            editor = editor,
+            canonicalKey = canonicalKey,
+            packageNames = target?.packageNames ?: emptyList(),
+            resetUsage = true
+        )
+        editor.commit()
+        PenaltyLockScheduler.cancelPenaltyUnlockAlarm(appContext, canonicalKey)
+        publishSnapshot()
+    }
+
+    /**
+     * Disarms active penalty locks during PIN-authorized uninstallation.
+     */
+    @Synchronized
+    fun disarmAllPenaltyLocksForUninstall() {
+        val editor = prefs.edit()
+        for (target in CoreTargetApp.entries) {
+            clearPenaltyStateInEditor(editor, target.appKey, target.packageNames, resetUsage = false)
+            PenaltyLockScheduler.cancelPenaltyUnlockAlarm(appContext, target.appKey)
+        }
+        editor.commit()
         publishSnapshot()
     }
 
     @Synchronized
     fun setAppLimitMinutes(appKey: String, limitMinutes: Int) {
-        if (getRemainingLockSeconds(appKey) > 0) return
+        if (getRemainingPenaltyLockMillis(prefs, appKey) > 0L) return
         val limitSec = (limitMinutes.coerceAtLeast(1)) * 60
         prefs.edit().putInt(PREFIX_LIMIT_SEC + appKey, limitSec).commit()
         publishSnapshot()
@@ -314,8 +468,10 @@ class RealtimeQuotaManager private constructor(context: Context) {
         const val KEY_IS_TEST_MODE = "is_one_minute_test_mode"
 
         const val PREFIX_USED_SEC = "used_seconds_"
+        const val PREFIX_USED_MS = "used_millis_"
         const val PREFIX_LIMIT_SEC = "limit_seconds_"
         const val PREFIX_LOCKED_UNTIL = "locked_until_epoch_ms_"
+        const val PREFIX_PENALTY_LOCK_UNTIL = "penalty_lock_until_"
         const val PREFIX_REMAINING_LOCK_SEC = "remaining_lock_seconds_"
         const val PREFIX_LOCK_STARTED_ELAPSED_MS = "lock_started_elapsed_ms_"
 
@@ -333,6 +489,43 @@ class RealtimeQuotaManager private constructor(context: Context) {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: RealtimeQuotaManager(context.applicationContext).also { INSTANCE = it }
             }
+        }
+
+        fun resolveLockUntilEpochMs(prefs: SharedPreferences, packageNameOrKey: String): Long {
+            val trimmed = packageNameOrKey.trim()
+            if (trimmed.isEmpty()) return 0L
+
+            val target = CoreTargetApp.fromPackageName(trimmed) ?: CoreTargetApp.fromAppKey(trimmed)
+            var maxUntil = maxOf(
+                prefs.getLong(PREFIX_PENALTY_LOCK_UNTIL + trimmed, 0L),
+                prefs.getLong(PREFIX_LOCKED_UNTIL + trimmed, 0L)
+            )
+            if (target != null) {
+                maxUntil = maxOf(
+                    maxUntil,
+                    prefs.getLong(PREFIX_PENALTY_LOCK_UNTIL + target.appKey, 0L),
+                    prefs.getLong(PREFIX_LOCKED_UNTIL + target.appKey, 0L)
+                )
+                for (pkg in target.packageNames) {
+                    maxUntil = maxOf(maxUntil, prefs.getLong(PREFIX_PENALTY_LOCK_UNTIL + pkg, 0L))
+                }
+            }
+            return maxUntil
+        }
+
+        fun getRemainingPenaltyLockMillis(prefs: SharedPreferences, packageName: String): Long {
+            return getRemainingPenaltyLockMillisAt(prefs, packageName, System.currentTimeMillis())
+        }
+
+        fun getRemainingPenaltyLockMillisAt(
+            prefs: SharedPreferences,
+            packageName: String,
+            nowEpochMs: Long
+        ): Long {
+            val lockUntil = resolveLockUntilEpochMs(prefs, packageName)
+            if (lockUntil <= 0L) return 0L
+            val remaining = lockUntil - nowEpochMs
+            return if (remaining > 0L) remaining else 0L
         }
 
         fun formatSecondsToMmSs(totalSeconds: Int): String {

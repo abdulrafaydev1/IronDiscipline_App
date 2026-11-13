@@ -37,6 +37,9 @@ class AlarmReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 Log.e(TAG, "[IronAlarmTrace:SYSTEM_EVENT_ERROR] Error rescheduling active alarms: ${e.message}")
             }
+            try {
+                com.irondiscipline.app.service.PenaltyLockScheduler.rescheduleActivePenaltyAlarms(context)
+            } catch (_: Exception) {}
             return
         }
 

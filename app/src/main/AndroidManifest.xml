@@ -100,6 +100,18 @@
                 android:value="Continuous app usage quota monitoring and focus enforcement" />
         </service>
 
+        <!-- Exact Alarm Receiver for 5-Hour Penalty Lock Expiration -->
+        <receiver
+            android:name=".service.PenaltyLockExpiryReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.irondiscipline.app.ACTION_PENALTY_LOCK_EXPIRED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Boot Receiver to restart Foreground Service when device restarts -->
         <receiver
             android:name=".service.BootCompletedReceiver"

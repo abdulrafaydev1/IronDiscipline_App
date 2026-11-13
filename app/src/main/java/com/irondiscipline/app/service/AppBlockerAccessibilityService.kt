@@ -2,9 +2,11 @@ package com.irondiscipline.app.service
 
 import android.accessibilityservice.AccessibilityService
 import android.app.admin.DevicePolicyManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -116,6 +118,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var screenShareConnection: ServiceConnection? = null
     private var isScreenShareBound = false
 
+    // Wall-Clock Usage Delta Tracking & Lightweight Penalty WakeLock
+    private var lastQuotaTickPackageKey: String? = null
+    private var lastQuotaTickEpochMs: Long = 0L
+    private var penaltyPartialWakeLock: PowerManager.WakeLock? = null
+    private var isScreenStateReceiverRegistered: Boolean = false
+
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            if (action == Intent.ACTION_SCREEN_ON || action == Intent.ACTION_USER_PRESENT) {
+                mainHandler.post {
+                    try {
+                        tickOneSecond()
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
     private val tickerRunnable = object : Runnable {
         override fun run() {
             try {
@@ -127,6 +148,56 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {}
             mainHandler.postDelayed(this, 1000L)
         }
+    }
+
+    private fun registerScreenStateReceiverIfNeeded() {
+        if (isScreenStateReceiverRegistered) return
+        try {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            }
+            ContextCompat.registerReceiver(this, screenStateReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
+            isScreenStateReceiverRegistered = true
+        } catch (_: Exception) {}
+    }
+
+    private fun unregisterScreenStateReceiverCleanly() {
+        if (!isScreenStateReceiverRegistered) return
+        try {
+            unregisterReceiver(screenStateReceiver)
+        } catch (_: Exception) {}
+        isScreenStateReceiverRegistered = false
+    }
+
+    @Synchronized
+    private fun maintainPenaltyCpuWakeLock(hasActivePenaltyLock: Boolean) {
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        try {
+            if (hasActivePenaltyLock) {
+                if (penaltyPartialWakeLock == null) {
+                    penaltyPartialWakeLock = pm.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        "IronDiscipline:PenaltyLockSyncWakeLock"
+                    ).apply { setReferenceCounted(false) }
+                }
+                if (penaltyPartialWakeLock?.isHeld == false) {
+                    // Bounded 6-hour safety timeout so lock never leaks indefinitely
+                    penaltyPartialWakeLock?.acquire(FIVE_HOURS_MS + 60_000L)
+                }
+            } else {
+                releasePenaltyCpuWakeLock()
+            }
+        } catch (_: Exception) {}
+    }
+
+    @Synchronized
+    private fun releasePenaltyCpuWakeLock() {
+        try {
+            if (penaltyPartialWakeLock?.isHeld == true) {
+                penaltyPartialWakeLock?.release()
+            }
+        } catch (_: Exception) {}
     }
 
     private fun manageScreenShareServiceBinding() {
@@ -175,6 +246,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
         DisciplineMonitorService.startServiceIfNeeded(applicationContext)
+        registerScreenStateReceiverIfNeeded()
+        PenaltyLockScheduler.rescheduleActivePenaltyAlarms(applicationContext)
 
         mainHandler.removeCallbacks(tickerRunnable)
         mainHandler.post(tickerRunnable)
@@ -185,6 +258,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         instance = this
         serviceConnectedTimestampMs = System.currentTimeMillis()
         DisciplineMonitorService.startServiceIfNeeded(applicationContext)
+        registerScreenStateReceiverIfNeeded()
+        PenaltyLockScheduler.rescheduleActivePenaltyAlarms(applicationContext)
 
         mainHandler.removeCallbacks(tickerRunnable)
         mainHandler.post(tickerRunnable)
@@ -192,6 +267,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(tickerRunnable)
+        unregisterScreenStateReceiverCleanly()
+        releasePenaltyCpuWakeLock()
         if (isScreenShareBound && screenShareConnection != null) {
             try { unbindService(screenShareConnection!!) } catch (_: Exception) {}
             screenShareConnection = null
@@ -279,8 +356,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (unlockedCustomAppPackage == normalizedPkg) return
 
         val matchedKey = resolveTargetAppKey(normalizedPkg)
-        val lockRem = if (matchedKey != null) prefs.getInt(PREFIX_REMAINING_LOCK_SEC + matchedKey, 0) else 0
-        if (lockRem > 0) return // Defer to 5-hour lock overlay
+        val lockRemMs = if (matchedKey != null) {
+            RealtimeQuotaManager.getRemainingPenaltyLockMillis(prefs, matchedKey)
+        } else 0L
+        if (lockRemMs > 0L) return // Defer to 5-hour lock overlay
 
         hideFloatingTimerPill()
         if (isBlockOverlayShowing) {
@@ -364,22 +443,34 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 unlockedCustomAppPackage = null
             }
 
-            // Priority 1: Flagship 5-Hour Lock Check
+            // Priority 1: Flagship 5-Hour Wall-Clock Lock Check
+            realtimeQuotaManager.reconcilePenaltyLocksAndResetExpired()
             val matchedKey = resolveTargetAppKey(validPkg)
-            val lockRem = if (matchedKey != null) prefs.getInt(PREFIX_REMAINING_LOCK_SEC + matchedKey, 0) else 0
+            val lockRemMs = if (matchedKey != null) {
+                RealtimeQuotaManager.getRemainingPenaltyLockMillis(prefs, matchedKey)
+            } else 0L
             val isTestMode = prefs.getBoolean("is_test_mode", false) || prefs.getBoolean("is_one_minute_test_mode", false)
             val limitSec = if (isTestMode) 60 else 1800
             val usedSec = if (matchedKey != null) prefs.getInt(PREFIX_USED_SEC + matchedKey, 0) else 0
 
-            if (matchedKey != null && (lockRem > 0 || usedSec >= limitSec)) {
-                val remSec = if (lockRem > 0) lockRem else FIVE_HOURS_SECONDS
+            if (matchedKey != null && (lockRemMs > 0L || usedSec >= limitSec)) {
+                val nowMs = System.currentTimeMillis()
+                val effectiveRemMs = if (lockRemMs > 0L) {
+                    lockRemMs
+                } else {
+                    val lockEndMs = realtimeQuotaManager.triggerFiveHourPenaltyLock(matchedKey, nowMs)
+                    (lockEndMs - nowMs).coerceAtLeast(1L)
+                }
                 if (isPasswordOverlayShowing) {
                     hidePasswordLockOverlay()
                 }
+                lastQuotaTickPackageKey = null
+                lastQuotaTickEpochMs = 0L
                 hideFloatingTimerPill()
                 latchedLockedAppKey = matchedKey
-                showOrUpdateBlockOverlay(matchedKey, remSec)
+                showOrUpdateBlockOverlay(matchedKey, effectiveRemMs)
                 stopVideoAndSilenceAudio()
+                maintainPenaltyCpuWakeLock(true)
                 return
             }
 
@@ -392,10 +483,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
             // Priority 3: Normal Quota Tracking
             if (matchedKey != null) {
+                val nowMs = System.currentTimeMillis()
                 currentTargetAppKey = matchedKey
-                lastTargetSeenTimestamp = System.currentTimeMillis()
+                lastTargetSeenTimestamp = nowMs
+                if (lastQuotaTickPackageKey != matchedKey) {
+                    lastQuotaTickPackageKey = matchedKey
+                    lastQuotaTickEpochMs = nowMs
+                }
             } else if (safeEvent.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                 currentTargetAppKey = null
+                lastQuotaTickPackageKey = null
+                lastQuotaTickEpochMs = 0L
                 hideFloatingTimerPill()
                 if (isBlockOverlayShowing && latchedLockedAppKey == null) {
                     hideBlockOverlay()
@@ -732,63 +830,81 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Single Deterministic 1-Second Ticker (Runs strictly on Main Thread).
-     * Guarantees monotonic time progression: time only ever increases by +1s during usage.
+     * Single Deterministic Ticker (Runs on Main Thread).
+     * Active usage tracks elapsed foreground wall-clock deltas (0..2500ms);
+     * 5-hour penalty locks derive strictly from `lockUntilEpochMs - System.currentTimeMillis()`,
+     * never manual decrements, so countdowns keep running accurately when screen is OFF or Doze is active.
      */
     private fun tickOneSecond() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val nowMs = System.currentTimeMillis()
 
         // Authorized App Uninstall: stand down overlay and allow unhindered removal
         if (com.irondiscipline.app.util.SecurityPinManager.isUninstallSessionActive(this)) {
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
             hideFloatingTimerPill()
             hideBlockOverlay()
+            releasePenaltyCpuWakeLock()
             return
+        }
+
+        // Step A — Reconcile wall-clock expired 5-hour penalty locks & unlock + reset quota cleanly:
+        val unlockedKeys = realtimeQuotaManager.reconcilePenaltyLocksAndResetExpired(nowMs)
+        if (latchedLockedAppKey != null && unlockedKeys.contains(latchedLockedAppKey)) {
+            hideBlockOverlay()
         }
 
         // Midnight rollover check for unlocked apps
         checkMidnightDateRollover(prefs)
 
-        // Step A — Decrement Active 5-Hour Locks First:
-        val coreKeys = listOf("youtube", "facebook", "instagram", "tiktok")
-        for (appKey in coreKeys) {
-            val lockRem = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + appKey, 0)
-            if (lockRem > 0) {
-                val nextLockRem = (lockRem - 1).coerceAtLeast(0)
-                if (nextLockRem == 0) {
-                    prefs.edit()
-                        .putInt(PREFIX_REMAINING_LOCK_SEC + appKey, 0)
-                        .putLong(PREFIX_LOCKED_UNTIL + appKey, 0L)
-                        .putInt(PREFIX_USED_SEC + appKey, 0) // fresh quota granted
-                        .commit()
-                } else {
-                    prefs.edit()
-                        .putInt(PREFIX_REMAINING_LOCK_SEC + appKey, nextLockRem)
-                        .commit()
-                }
-            }
-        }
+        // Keep lightweight PARTIAL_WAKE_LOCK only while any core app has an active penalty lock
+        val anyPenaltyLocked = isAnyCoreAppLocked(prefs)
+        maintainPenaltyCpuWakeLock(anyPenaltyLocked)
 
-        // Screen-off auto-relock: if screen is turned off, reset custom app unlock session
+        // Screen-off guard: never consume 30-minute foreground quota while screen is turned OFF,
+        // while keeping latched 5-hour penalty countdown synced via hardware RTC.
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
         if (pm?.isInteractive == false) {
             unlockedCustomAppPackage = null
+            currentTargetAppKey = null
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
+            hideFloatingTimerPill()
+
+            if (isBlockOverlayShowing && latchedLockedAppKey != null) {
+                val key = latchedLockedAppKey!!
+                val remLockMs = RealtimeQuotaManager.getRemainingPenaltyLockMillisAt(prefs, key, nowMs)
+                if (remLockMs > 0L) {
+                    showOrUpdateBlockOverlay(key, remLockMs)
+                    stopVideoAndSilenceAudio()
+                } else {
+                    hideBlockOverlay()
+                }
+            }
+            realtimeQuotaManager.publishSnapshot(nowMs)
+            return
         }
 
         // CRITICAL LATCH CHECK: If password lock overlay is showing, stay latched and audio muted!
         if (isPasswordOverlayShowing && latchedPasswordLockedPkg != null) {
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
             stopVideoAndSilenceAudio()
             return
         }
 
         // CRITICAL LATCH CHECK: If block overlay is currently showing, keep it strictly latched!
         if (isBlockOverlayShowing && latchedLockedAppKey != null) {
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
             val key = latchedLockedAppKey!!
-            val remLock = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
-            if (remLock > 0) {
+            val remLockMs = RealtimeQuotaManager.getRemainingPenaltyLockMillisAt(prefs, key, nowMs)
+            if (remLockMs > 0L) {
                 hideFloatingTimerPill()
-                showOrUpdateBlockOverlay(key, remLock)
+                showOrUpdateBlockOverlay(key, remLockMs)
                 stopVideoAndSilenceAudio() // Keep underlying video paused/muted
-                realtimeQuotaManager.publishSnapshot()
+                realtimeQuotaManager.publishSnapshot(nowMs)
                 return // Stay latched! Do NOT run normal detection or hide overlay!
             } else {
                 // 5-hour lock has completely expired
@@ -797,7 +913,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         // Grace period check: Wait for Home Launcher transition
-        if (System.currentTimeMillis() < exitToHomeGraceUntilMs || System.currentTimeMillis() < exitCustomLockGraceUntilMs) {
+        if (nowMs < exitToHomeGraceUntilMs || nowMs < exitCustomLockGraceUntilMs) {
             return
         }
 
@@ -813,6 +929,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val activeForegroundPkg = detectCurrentForegroundPackage()
         val currentPackageCheck = activeForegroundPkg ?: lastDetectedPackage.trim().lowercase()
         if (IronDisciplineApp.isMainActivityVisible || isHomeLauncherPackage(currentPackageCheck) || (currentPackageCheck == packageName.lowercase() && IronDisciplineApp.isMainActivityVisible)) {
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
             hideFloatingTimerPill()
             unlockedCustomAppPackage = null
             if (isBlockOverlayShowing) {
@@ -821,7 +939,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (isPasswordOverlayShowing) {
                 hidePasswordLockOverlay()
             }
-            realtimeQuotaManager.publishSnapshot()
+            realtimeQuotaManager.publishSnapshot(nowMs)
             return
         }
 
@@ -833,43 +951,62 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
             checkAndEnforceCustomAppLock(activeForegroundPkg)
             if (isPasswordOverlayShowing) {
+                lastQuotaTickPackageKey = null
+                lastQuotaTickEpochMs = 0L
                 stopVideoAndSilenceAudio()
                 return
             }
         }
 
-        // Step B — Active App Detection & 1-Second Synchronous Ticking:
+        // Step B — Active App Detection & Real-Time Delta Quota Ticking:
         val activeKey = detectCurrentTargetAppKey()
         if (activeKey != null) {
-            val lockRem = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + activeKey, 0)
+            val lockRemMs = RealtimeQuotaManager.getRemainingPenaltyLockMillisAt(prefs, activeKey, nowMs)
             val isTestMode = prefs.getBoolean("is_test_mode", false) || prefs.getBoolean("is_one_minute_test_mode", false)
             val limitSeconds = if (isTestMode) 60 else 1800
+            val limitMs = limitSeconds * 1000L
 
-            if (lockRem > 0) {
+            if (lockRemMs > 0L) {
                 // App is locked for 5 hours: latch, hide mini pill, show block overlay, silence audio
+                lastQuotaTickPackageKey = null
+                lastQuotaTickEpochMs = 0L
                 hideFloatingTimerPill()
                 latchedLockedAppKey = activeKey
-                showOrUpdateBlockOverlay(activeKey, lockRem)
+                showOrUpdateBlockOverlay(activeKey, lockRemMs)
                 stopVideoAndSilenceAudio()
             } else {
-                // App is unlocked: synchronously increment used seconds by +1
-                val used = prefs.getInt(PREFIX_USED_SEC + activeKey, 0) + 1
-                prefs.edit().putInt(PREFIX_USED_SEC + activeKey, used).commit()
+                // App is unlocked: accumulate real elapsed foreground usage delta (clamped 0..2500ms)
+                val deltaMs = if (lastQuotaTickPackageKey == activeKey && lastQuotaTickEpochMs > 0L) {
+                    (nowMs - lastQuotaTickEpochMs).coerceIn(0L, 2500L)
+                } else {
+                    1000L
+                }
+                lastQuotaTickPackageKey = activeKey
+                lastQuotaTickEpochMs = nowMs
 
-                val remainingSec = (limitSeconds - used).coerceAtLeast(0)
+                val prevUsedSec = prefs.getInt(PREFIX_USED_SEC + activeKey, 0).coerceAtLeast(0)
+                val prevUsedMs = prefs.getLong(RealtimeQuotaManager.PREFIX_USED_MS + activeKey, prevUsedSec * 1000L)
+                    .coerceAtLeast(prevUsedSec * 1000L)
+                val newUsedMs = prevUsedMs + deltaMs
+                val used = (newUsedMs / 1000L).toInt()
 
-                if (used >= limitSeconds) {
-                    // Reached limit: trigger 5-hour lock immediately
-                    val lockEndMs = System.currentTimeMillis() + FIVE_HOURS_MS
-                    prefs.edit()
-                        .putInt(PREFIX_REMAINING_LOCK_SEC + activeKey, FIVE_HOURS_SECONDS)
-                        .putLong(PREFIX_LOCKED_UNTIL + activeKey, lockEndMs)
-                        .commit()
+                prefs.edit()
+                    .putLong(RealtimeQuotaManager.PREFIX_USED_MS + activeKey, newUsedMs)
+                    .putInt(PREFIX_USED_SEC + activeKey, used)
+                    .commit()
+
+                if (newUsedMs >= limitMs || used >= limitSeconds) {
+                    // Reached quota limit: persist wall-clock 5-hour lock immediately & schedule exact unlock alarm
+                    val lockEndMs = realtimeQuotaManager.triggerFiveHourPenaltyLock(activeKey, nowMs)
+                    lastQuotaTickPackageKey = null
+                    lastQuotaTickEpochMs = 0L
                     hideFloatingTimerPill()
                     latchedLockedAppKey = activeKey
-                    showOrUpdateBlockOverlay(activeKey, FIVE_HOURS_SECONDS)
+                    showOrUpdateBlockOverlay(activeKey, (lockEndMs - nowMs).coerceAtLeast(1L))
                     stopVideoAndSilenceAudio()
+                    maintainPenaltyCpuWakeLock(true)
                 } else {
+                    val remainingSec = ((limitMs - newUsedMs + 999L) / 1000L).toInt().coerceAtLeast(0)
                     // Show or update top-right Live Floating Timer Pill
                     showOrUpdateFloatingTimerPill(activeKey, remainingSec)
 
@@ -880,6 +1017,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         } else {
             // User switched to an unblocked application (e.g. WhatsApp, Maps)
+            lastQuotaTickPackageKey = null
+            lastQuotaTickEpochMs = 0L
             hideFloatingTimerPill()
             if (isBlockOverlayShowing && latchedLockedAppKey == null) {
                 hideBlockOverlay()
@@ -887,7 +1026,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         // Smooth real-time UI notification
-        realtimeQuotaManager.publishSnapshot()
+        realtimeQuotaManager.publishSnapshot(nowMs)
     }
 
     private fun checkMidnightDateRollover(prefs: SharedPreferences) {
@@ -895,13 +1034,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val trackedDate = prefs.getString("tracked_date_yyyy_mm_dd", today) ?: today
         if (today != trackedDate) {
             val editor = prefs.edit().putString("tracked_date_yyyy_mm_dd", today)
-            val coreKeys = listOf("youtube", "facebook", "instagram", "tiktok")
-            for (key in coreKeys) {
-                val lockRem = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+            for (target in CoreTargetApp.entries) {
+                val key = target.appKey
+                val lockRemMs = RealtimeQuotaManager.getRemainingPenaltyLockMillis(prefs, key)
                 // Only reset apps that are NOT currently serving a 5-hour penalty!
-                if (lockRem <= 0) {
+                if (lockRemMs <= 0L) {
                     editor.putInt(PREFIX_USED_SEC + key, 0)
+                    editor.putLong(RealtimeQuotaManager.PREFIX_USED_MS + key, 0L)
                     editor.putLong(PREFIX_LOCKED_UNTIL + key, 0L)
+                    editor.putLong(RealtimeQuotaManager.PREFIX_PENALTY_LOCK_UNTIL + key, 0L)
+                    editor.putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+                    target.packageNames.forEach { pkg ->
+                        editor.putLong(RealtimeQuotaManager.PREFIX_PENALTY_LOCK_UNTIL + pkg, 0L)
+                    }
                 }
             }
             editor.commit()
@@ -911,11 +1056,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun isAnyCoreAppLocked(prefs: SharedPreferences): Boolean {
         val isTestMode = prefs.getBoolean("is_test_mode", false) || prefs.getBoolean("is_one_minute_test_mode", false)
         val limitSec = if (isTestMode) 60 else 1800
-        val coreKeys = listOf("youtube", "facebook", "instagram", "tiktok")
-        return coreKeys.any { key ->
-            val lockRem = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
+        return CoreTargetApp.entries.any { target ->
+            val key = target.appKey
+            val lockRemMs = RealtimeQuotaManager.getRemainingPenaltyLockMillis(prefs, key)
             val usedSec = prefs.getInt(PREFIX_USED_SEC + key, 0)
-            lockRem > 0 || usedSec >= limitSec
+            lockRemMs > 0L || usedSec >= limitSec
         }
     }
 
@@ -970,11 +1115,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     fun showBlockOverlay(appKey: String) {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val remSec = prefs.getInt(PREFIX_REMAINING_LOCK_SEC + appKey, FIVE_HOURS_SECONDS)
-        showOrUpdateBlockOverlay(appKey, if (remSec > 0) remSec else FIVE_HOURS_SECONDS)
+        val remMs = RealtimeQuotaManager.getRemainingPenaltyLockMillis(prefs, appKey)
+        showOrUpdateBlockOverlay(appKey, if (remMs > 0L) remMs else FIVE_HOURS_MS)
     }
 
     fun showOrUpdateBlockOverlay(appKey: String, remainingLockSeconds: Int) {
+        showOrUpdateBlockOverlay(appKey, remainingLockSeconds.toLong().coerceAtLeast(0L) * 1000L)
+    }
+
+    fun showOrUpdateBlockOverlay(appKey: String, remainingLockMillis: Long) {
         val displayAppName = when (appKey) {
             "youtube" -> "YouTube"
             "facebook" -> "Facebook"
@@ -982,7 +1131,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "tiktok" -> "TikTok"
             else -> appKey.replaceFirstChar { it.uppercase() }
         }
-        val formattedTime = RealtimeQuotaManager.formatSecondsToHhMmSs(remainingLockSeconds)
+        val formattedTime = RealtimeQuotaManager.formatMillisToHhMmSs(remainingLockMillis)
 
         // 1. If overlay is ALREADY on screen, ONLY update the TextViews in-place! (ZERO FLICKER)
         if (isBlockOverlayShowing && blockOverlayView != null) {
@@ -1003,7 +1152,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         try {
-            val view = buildNativeBlockOverlayView(displayAppName, appKey, remainingLockSeconds)
+            val view = buildNativeBlockOverlayView(displayAppName, appKey, remainingLockMillis)
             val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             } else {
@@ -1056,7 +1205,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         val wm = windowManager ?: return
-        val view = buildNativeBlockOverlayView(title, null, FIVE_HOURS_SECONDS)
+        val view = buildNativeBlockOverlayView(title, null, FIVE_HOURS_MS)
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
         } else {
@@ -1099,7 +1248,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun buildNativeBlockOverlayView(
         appName: String,
         appKey: String?,
-        remainingLockSeconds: Int
+        remainingLockMillis: Long
     ): FrameLayout {
         val rootFrame = object : FrameLayout(this) {
             override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
@@ -1251,7 +1400,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         countdownBox.addView(labelTv)
 
         val timerTv = TextView(this).apply {
-            text = if (appKey != null) RealtimeQuotaManager.formatSecondsToHhMmSs(remainingLockSeconds) else "--:--:--"
+            text = if (appKey != null) RealtimeQuotaManager.formatMillisToHhMmSs(remainingLockMillis) else "--:--:--"
             setTextColor(Color.parseColor("#FF4D6D"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 36f)
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
@@ -2014,22 +2163,30 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         /**
+         * Called when a 5-hour penalty lock expires in background or via exact AlarmManager wakeup.
+         */
+        fun onPenaltyLocksReconciled(unlockedAppKeys: List<String>) {
+            val service = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                if (service.latchedLockedAppKey != null && unlockedAppKeys.contains(service.latchedLockedAppKey)) {
+                    service.hideBlockOverlay()
+                }
+                val prefs = service.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                service.maintainPenaltyCpuWakeLock(service.isAnyCoreAppLocked(prefs))
+            }
+        }
+
+        /**
          * Disarms 5-hour locks for target apps and cleans up overlays so Android's
          * package uninstaller dialog is completely unobstructed.
          */
         fun disarmAndDisableServiceForUninstall(context: Context) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val editor = prefs.edit()
-            val coreKeys = listOf("youtube", "facebook", "instagram", "tiktok")
-            for (key in coreKeys) {
-                editor.putInt(PREFIX_REMAINING_LOCK_SEC + key, 0)
-                editor.putLong(PREFIX_LOCKED_UNTIL + key, 0L)
-            }
-            editor.commit()
+            RealtimeQuotaManager.getInstance(context).disarmAllPenaltyLocksForUninstall()
 
             val service = instance
             if (service != null) {
                 Handler(Looper.getMainLooper()).post {
+                    service.releasePenaltyCpuWakeLock()
                     service.hideFloatingTimerPill()
                     service.hideBlockOverlay()
                     service.hidePasswordLockOverlay()

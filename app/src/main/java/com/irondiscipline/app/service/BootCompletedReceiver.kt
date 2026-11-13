@@ -3,7 +3,9 @@ package com.irondiscipline.app.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.irondiscipline.app.alarm.AlarmRepository
 import com.irondiscipline.app.util.PermissionHelper
+import com.irondiscipline.app.util.RealtimeQuotaManager
 import com.irondiscipline.app.util.SecurityPinManager
 
 class BootCompletedReceiver : BroadcastReceiver() {
@@ -25,10 +27,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
 
             DisciplineMonitorService.startServiceIfNeeded(context)
             try {
-                com.irondiscipline.app.util.RealtimeQuotaManager.getInstance(context).refreshSnapshotNow()
+                RealtimeQuotaManager.getInstance(context).refreshSnapshotNow()
+                PenaltyLockScheduler.rescheduleActivePenaltyAlarms(context)
             } catch (_: Exception) {}
             try {
-                com.irondiscipline.app.alarm.AlarmRepository.getInstance(context).rescheduleAllActiveAlarms()
+                AlarmRepository.getInstance(context).rescheduleAllActiveAlarms()
             } catch (_: Exception) {}
         }
     }

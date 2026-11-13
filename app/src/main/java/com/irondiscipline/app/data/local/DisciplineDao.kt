@@ -83,8 +83,11 @@ interface DisciplineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertUsageLog(log: DailyUsageLog)
 
-    @Query("UPDATE daily_usage_logs SET usedSeconds = 0 WHERE dateString = :dateString")
+    @Query("UPDATE daily_usage_logs SET usedSeconds = 0, lockedUntilEpochMs = 0 WHERE dateString = :dateString")
     suspend fun resetUsedSecondsForDate(dateString: String)
+
+    @Query("UPDATE daily_usage_logs SET usedSeconds = 0, lockedUntilEpochMs = 0 WHERE packageName = :packageName")
+    suspend fun clearLockAndResetUsageAllDatesForPackage(packageName: String)
 
     // --- Discipline State (Streak, Strict Mode, Emergency Unlock, Custom Quote) ---
     @Query("SELECT * FROM discipline_state WHERE id = 1 LIMIT 1")

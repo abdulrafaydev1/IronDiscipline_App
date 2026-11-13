@@ -294,12 +294,14 @@ class DisciplineRepository(
         val todayStr = LocalDate.now().toString()
         val canonicalPkg = CoreTargetApp.canonicalKeyForPackage(packageName)
         val existingLog = dao.getUsageLogForPackage(todayStr, canonicalPkg)
+        val lockedUntilMs = realtimeQuotaManager?.getLockedUntilEpochMs(canonicalPkg) ?: 0L
         dao.upsertUsageLog(
             DailyUsageLog(
                 dateString = todayStr,
                 packageName = canonicalPkg,
                 usedSeconds = usedSecondsToday.toLong(),
                 blockedAttemptsCount = existingLog?.blockedAttemptsCount ?: 0,
+                lockedUntilEpochMs = lockedUntilMs,
                 lastUpdatedEpochMs = System.currentTimeMillis()
             )
         )
@@ -325,6 +327,7 @@ class DisciplineRepository(
         val coreTarget = CoreTargetApp.fromPackageName(packageName)
         if (coreTarget != null) {
             val usedSecondsToday = realtimeQuotaManager?.incrementUsedSecond(coreTarget.appKey, nowMs) ?: 0
+            val lockedUntilMs = realtimeQuotaManager?.getLockedUntilEpochMs(coreTarget.appKey) ?: 0L
             val todayStr = LocalDate.now().toString()
             val existingLog = dao.getUsageLogForPackage(todayStr, canonicalPkg)
             dao.upsertUsageLog(
@@ -333,6 +336,7 @@ class DisciplineRepository(
                     packageName = canonicalPkg,
                     usedSeconds = usedSecondsToday.toLong(),
                     blockedAttemptsCount = existingLog?.blockedAttemptsCount ?: 0,
+                    lockedUntilEpochMs = lockedUntilMs,
                     lastUpdatedEpochMs = nowMs
                 )
             )
@@ -362,12 +366,19 @@ class DisciplineRepository(
         val canonicalPkg = CoreTargetApp.canonicalKeyForPackage(packageName)
         val existing = dao.getUsageLogForPackage(todayStr, canonicalPkg)
         val realtimeSec = realtimeQuotaManager?.getUsedSecondsToday(canonicalPkg)?.toLong() ?: 0L
-        val latestSec = maxOf(realtimeSec, existing?.usedSeconds ?: 0L)
+        val lockedUntilMs = realtimeQuotaManager?.getLockedUntilEpochMs(canonicalPkg) ?: 0L
+        val isCore = CoreTargetApp.fromAppKey(canonicalPkg) != null
+        val latestSec = if (isCore && realtimeQuotaManager != null) {
+            realtimeSec
+        } else {
+            maxOf(realtimeSec, existing?.usedSeconds ?: 0L)
+        }
         val updated = DailyUsageLog(
             dateString = todayStr,
             packageName = canonicalPkg,
             usedSeconds = latestSec,
             blockedAttemptsCount = (existing?.blockedAttemptsCount ?: 0) + 1,
+            lockedUntilEpochMs = lockedUntilMs,
             lastUpdatedEpochMs = System.currentTimeMillis()
         )
         dao.upsertUsageLog(updated)
@@ -385,15 +396,22 @@ class DisciplineRepository(
             val canonicalPkg = CoreTargetApp.canonicalKeyForPackage(pkg)
             val existing = existingLogs[canonicalPkg]
             val realtimeSec = realtimeQuotaManager?.getUsedSecondsToday(canonicalPkg)?.toLong() ?: 0L
-            val mergedSec = maxOf(realtimeSec, existing?.usedSeconds ?: 0L)
+            val lockedUntilMs = realtimeQuotaManager?.getLockedUntilEpochMs(canonicalPkg) ?: 0L
+            val isCore = CoreTargetApp.fromAppKey(canonicalPkg) != null
+            val mergedSec = if (isCore && realtimeQuotaManager != null) {
+                realtimeSec
+            } else {
+                maxOf(realtimeSec, existing?.usedSeconds ?: 0L)
+            }
             result[pkg] = mergedSec
-            if (mergedSec > 0L || existing != null) {
+            if (mergedSec > 0L || lockedUntilMs > 0L || existing != null) {
                 dao.upsertUsageLog(
                     DailyUsageLog(
                         dateString = todayStr,
                         packageName = canonicalPkg,
                         usedSeconds = mergedSec,
                         blockedAttemptsCount = existing?.blockedAttemptsCount ?: 0,
+                        lockedUntilEpochMs = lockedUntilMs,
                         lastUpdatedEpochMs = System.currentTimeMillis()
                     )
                 )

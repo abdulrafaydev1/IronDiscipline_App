@@ -11,5 +11,6 @@ data class DailyUsageLog(
     val packageName: String,
     val usedSeconds: Long = 0L,
     val blockedAttemptsCount: Int = 0,
+    val lockedUntilEpochMs: Long = 0L,
     val lastUpdatedEpochMs: Long = System.currentTimeMillis()
 )

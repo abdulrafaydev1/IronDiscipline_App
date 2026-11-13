@@ -1,5 +1,6 @@
 package com.irondiscipline.app.ui.overlay
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -43,9 +44,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,6 +57,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +66,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.irondiscipline.app.domain.model.BlockEvaluationResult
 import com.irondiscipline.app.domain.model.BlockReasonType
 import com.irondiscipline.app.ui.theme.DarkBg
@@ -72,7 +79,9 @@ import com.irondiscipline.app.ui.theme.NeonCrimson
 import com.irondiscipline.app.ui.theme.NeonLime
 import com.irondiscipline.app.ui.theme.TextMuted
 import com.irondiscipline.app.ui.theme.TextPrimary
+import com.irondiscipline.app.util.RealtimeQuotaManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.util.Locale
 import kotlin.random.Random
 
@@ -115,6 +124,45 @@ fun BlockOverlayView(
     // Consume hardware back button presses so overlay cannot be dismissed via Back
     BackHandler(enabled = true) {
         // Intentionally blocked: user must choose "Back to Work"
+    }
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val penaltyPrefs = remember(context) {
+        context.getSharedPreferences(RealtimeQuotaManager.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    var remainingLockMs by remember(evaluationResult.targetKey) {
+        mutableLongStateOf(
+            RealtimeQuotaManager.getRemainingPenaltyLockMillis(
+                prefs = penaltyPrefs,
+                packageName = evaluationResult.targetKey
+            )
+        )
+    }
+
+    LaunchedEffect(evaluationResult.targetKey) {
+        while (isActive) {
+            remainingLockMs = RealtimeQuotaManager.getRemainingPenaltyLockMillis(
+                prefs = penaltyPrefs,
+                packageName = evaluationResult.targetKey
+            )
+            delay(500L)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, evaluationResult.targetKey) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                remainingLockMs = RealtimeQuotaManager.getRemainingPenaltyLockMillis(
+                    prefs = penaltyPrefs,
+                    packageName = evaluationResult.targetKey
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     var isFrictionFlowActive by remember(evaluationResult.targetKey) { mutableStateOf(false) }
@@ -226,6 +274,23 @@ fun BlockOverlayView(
                     .background(NeonAmber.copy(alpha = 0.12f))
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             )
+
+            if (evaluationResult.reasonType == BlockReasonType.DAILY_QUOTA_EXHAUSTED && remainingLockMs > 0L) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "PENALTY LOCK: ${RealtimeQuotaManager.formatMillisToHhMmSs(remainingLockMs)}",
+                    color = NeonCrimson,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(NeonCrimson.copy(alpha = 0.16f))
+                        .border(1.dp, NeonCrimson.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

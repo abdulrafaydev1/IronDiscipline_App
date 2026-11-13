@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,7 +83,15 @@ import androidx.compose.ui.window.DialogProperties
 import com.irondiscipline.app.alarm.AlarmItem
 import com.irondiscipline.app.alarm.AlarmRepository
 import com.irondiscipline.app.alarm.HardAlarmSoundEngine
+import com.irondiscipline.app.ui.components.LuxuryBrushes
+import com.irondiscipline.app.ui.components.LuxuryGlassCard
+import com.irondiscipline.app.ui.components.LuxuryStatusPill
 import com.irondiscipline.app.ui.components.jellyElastic
+import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
+import com.irondiscipline.app.ui.theme.LuxuryCrimsonAlert
+import com.irondiscipline.app.ui.theme.LuxuryPlatinumSubtitle
+import com.irondiscipline.app.ui.theme.LuxurySapphireCyan
+import com.irondiscipline.app.ui.theme.LuxuryTacticalEmerald
 import com.irondiscipline.app.util.PermissionHelper
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -151,47 +160,57 @@ fun AlarmScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF06080E))
+            .background(LuxuryBrushes.primaryBackground)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header Title
+            // Luxury Executive Alarm Header Card
             item {
-                Column {
+                LuxuryGlassCard(
+                    cornerRadius = 22.dp,
+                    borderBrush = LuxuryBrushes.specularBorder
+                ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF2A121E))
-                                .border(1.dp, Color(0xFFFF2E54), RoundedCornerShape(10.dp)),
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(LuxuryChampagneGold.copy(alpha = 0.14f))
+                                .border(1.dp, LuxuryChampagneGold.copy(alpha = 0.7f), RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Alarm,
                                 contentDescription = null,
-                                tint = Color(0xFFFF2E54),
-                                modifier = Modifier.size(20.dp)
+                                tint = LuxuryChampagneGold,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "HARD DISCIPLINE ALARM",
-                                color = Color.White,
+                                style = TextStyle(
+                                    brush = Brush.horizontalGradient(listOf(Color.White, LuxuryChampagneGold))
+                                ),
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp
+                                letterSpacing = 1.4.sp
                             )
                             Text(
-                                text = "Non-negotiable high-decibel wake-up protocols",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 12.sp
+                                text = "NON-NEGOTIABLE WAKE-UP PROTOCOLS",
+                                color = LuxurySapphireCyan,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.1.sp
                             )
                         }
                     }
@@ -238,48 +257,59 @@ fun AlarmScreen(
                 )
             }
 
-            // Section Header & Add Alarm Action
+            // Section Header & Create Hard Alarm Button
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "SCHEDULED PROTOCOLS (${alarms.size})",
-                        color = Color(0xFF64748B),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SCHEDULED PROTOCOLS (${alarms.size})",
+                            color = LuxuryPlatinumSubtitle,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.6.sp
+                        )
+                        Text(
+                            text = "${alarms.count { it.isEnabled }} ARMED",
+                            color = LuxuryChampagneGold,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.8.sp
+                        )
+                    }
 
                     Button(
                         onClick = { isCreateDialogOpen = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent
                         ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
-                            .jellyElastic(baseCornerRadius = 20.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFFFF2E54), Color(0xFFFF5252))
-                                )
-                            )
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .jellyElastic(baseCornerRadius = 16.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(LuxuryBrushes.sapphireButtonGradient)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "New Alarm",
+                            text = "➕ Create Hard Alarm",
                             color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.6.sp
                         )
                     }
                 }
@@ -506,103 +536,90 @@ fun NextAlarmHeroBanner(
     nextAlarm: AlarmItem?,
     remainingMs: Long?
 ) {
-    val bannerBrush = Brush.linearGradient(
-        listOf(Color(0xFF1F111E), Color(0xFF131A29), Color(0xFF0F172A))
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121824)),
-        border = BorderStroke(1.dp, Color(0xFFFF2E54).copy(alpha = 0.5f))
+    LuxuryGlassCard(
+        cornerRadius = 22.dp,
+        borderBrush = if (nextAlarm != null) LuxuryBrushes.activeHighlightBorder else LuxuryBrushes.specularBorder
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(bannerBrush)
-                .padding(20.dp)
-        ) {
-            Column {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = Color(0xFFFF2E54),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "NEXT HARD ALARM",
-                            color = Color(0xFFFF4D6D),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                    }
-
-                    if (nextAlarm != null) {
-                        val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
-                        Text(
-                            text = nextAlarm.getFormattedTime(is24Hour),
-                            color = Color(0xFFFFB300),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = if (nextAlarm != null) LuxuryChampagneGold else LuxuryPlatinumSubtitle,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "NEXT HARD ALARM",
+                        color = if (nextAlarm != null) LuxuryChampagneGold else LuxuryPlatinumSubtitle,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.6.sp
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (nextAlarm != null && remainingMs != null && remainingMs > 0) {
-                    val totalSec = remainingMs / 1000
-                    val hours = totalSec / 3600
-                    val minutes = (totalSec % 3600) / 60
-                    val seconds = totalSec % 60
-
-                    val timeString = if (hours > 0) {
-                        "${hours}h ${minutes}m ${seconds}s"
-                    } else {
-                        "${minutes}m ${seconds}s"
-                    }
-
+                if (nextAlarm != null) {
+                    val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
                     Text(
-                        text = "RINGS IN $timeString",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "“${nextAlarm.label}” — No excuses, zero hesitation.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                } else {
-                    Text(
-                        text = "NO ALARMS ARMED",
-                        color = Color(0xFF64748B),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
+                        text = nextAlarm.getFormattedTime(is24Hour),
+                        color = LuxurySapphireCyan,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Set an early protocol to conquer the morning.",
-                        color = Color(0xFF64748B),
-                        fontSize = 12.sp
-                    )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (nextAlarm != null && remainingMs != null && remainingMs > 0) {
+                val totalSec = remainingMs / 1000
+                val hours = totalSec / 3600
+                val minutes = (totalSec % 3600) / 60
+                val seconds = totalSec % 60
+
+                val timeString = if (hours > 0) {
+                    "${hours}h ${minutes}m ${seconds}s"
+                } else {
+                    "${minutes}m ${seconds}s"
+                }
+
+                Text(
+                    text = "RINGS IN $timeString",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "“${nextAlarm.label}” — Zero excuses, non-negotiable.",
+                    color = LuxuryPlatinumSubtitle,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            } else {
+                Text(
+                    text = "NO ALARMS ARMED",
+                    color = LuxuryPlatinumSubtitle,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Create a protocol to command your morning.",
+                    color = Color(0xFF64748B),
+                    fontSize = 12.sp
+                )
             }
         }
     }
@@ -615,55 +632,49 @@ fun AlarmItemCard(
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (alarm.isEnabled) Color(0xFF131927) else Color(0xFF0C1019)
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (alarm.isEnabled) Color(0xFF1E293B) else Color(0xFF151C2C)
-        )
+    LuxuryGlassCard(
+        cornerRadius = 22.dp,
+        borderBrush = if (alarm.isEnabled) LuxuryBrushes.activeHighlightBorder else LuxuryBrushes.specularBorder
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
-            // Top Row: Time, Label, and Toggle Switch
+            // Top Row: 36.sp Monospace Time, Label, and Toggle Switch
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = alarm.getFormattedTime(is24Hour),
                         color = if (alarm.isEnabled) Color.White else Color(0xFF64748B),
-                        fontSize = 28.sp,
+                        fontSize = 36.sp,
                         fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.5.sp
                     )
                     Text(
                         text = alarm.label,
-                        color = if (alarm.isEnabled) Color(0xFF38BDF8) else Color(0xFF475569),
+                        color = if (alarm.isEnabled) LuxuryChampagneGold else Color(0xFF475569),
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Switch(
                         checked = alarm.isEnabled,
                         onCheckedChange = onToggle,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF06080E),
-                            checkedTrackColor = Color(0xFF00E676),
+                            checkedThumbColor = Color(0xFF06080D),
+                            checkedTrackColor = LuxuryTacticalEmerald,
                             uncheckedThumbColor = Color(0xFF64748B),
                             uncheckedTrackColor = Color(0xFF1E293B)
                         )
@@ -672,13 +683,13 @@ fun AlarmItemCard(
                     IconButton(
                         onClick = onDelete,
                         modifier = Modifier
-                            .size(32.dp)
-                            .jellyElastic(baseCornerRadius = 16.dp)
+                            .size(34.dp)
+                            .jellyElastic(baseCornerRadius = 17.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete Alarm",
-                            tint = Color(0xFF64748B),
+                            tint = LuxuryPlatinumSubtitle,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -695,7 +706,7 @@ fun AlarmItemCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Sound and Badges FlowRow
+            // Sound and Hard Enforcement Protocol Badges
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -704,20 +715,33 @@ fun AlarmItemCard(
                 BadgePill(
                     icon = Icons.Default.VolumeUp,
                     text = alarm.soundDisplayName.substringAfter(". "),
-                    textColor = if (alarm.isEnabled) Color(0xFFFF4D6D) else Color(0xFF64748B),
-                    backgroundColor = if (alarm.isEnabled) Color(0xFF28131E) else Color(0xFF151821)
+                    textColor = if (alarm.isEnabled) LuxuryCrimsonAlert else Color(0xFF64748B),
+                    backgroundColor = if (alarm.isEnabled) LuxuryCrimsonAlert.copy(alpha = 0.14f) else Color(0xFF151821)
                 )
 
-                // Math Mission Badge
-                if (alarm.dismissChallenge != "NONE") {
-                    val missionLabel = if (alarm.dismissChallenge == "MATH_HARD") "🔥 Hard Math (5 Sums)" else "🧠 Math (5 Sums)"
-                    BadgePill(
-                        icon = Icons.Default.Psychology,
-                        text = missionLabel,
-                        textColor = if (alarm.isEnabled) Color(0xFFFFB300) else Color(0xFF64748B),
-                        backgroundColor = if (alarm.isEnabled) Color(0xFF292011) else Color(0xFF151821)
-                    )
-                }
+                // 5 Math (+ / -) Challenge Badge
+                BadgePill(
+                    icon = null,
+                    text = "🧮 5 Math (+ / -)",
+                    textColor = if (alarm.isEnabled) LuxuryChampagneGold else Color(0xFF64748B),
+                    backgroundColor = if (alarm.isEnabled) LuxuryChampagneGold.copy(alpha = 0.14f) else Color(0xFF151821)
+                )
+
+                // 10s 5-Digit Code Badge
+                BadgePill(
+                    icon = null,
+                    text = "🔢 10s 5-Digit Code",
+                    textColor = if (alarm.isEnabled) LuxurySapphireCyan else Color(0xFF64748B),
+                    backgroundColor = if (alarm.isEnabled) LuxurySapphireCyan.copy(alpha = 0.14f) else Color(0xFF151821)
+                )
+
+                // 5m Follow-Up Check Badge
+                BadgePill(
+                    icon = null,
+                    text = "⏰ 5m Follow-Up Check",
+                    textColor = if (alarm.isEnabled) LuxuryTacticalEmerald else Color(0xFF64748B),
+                    backgroundColor = if (alarm.isEnabled) LuxuryTacticalEmerald.copy(alpha = 0.14f) else Color(0xFF151821)
+                )
 
                 // Auto Delete Badge
                 if (alarm.deleteAfterRinging) {
@@ -734,18 +758,8 @@ fun AlarmItemCard(
                     BadgePill(
                         icon = null,
                         text = "📳 Vibrate",
-                        textColor = if (alarm.isEnabled) Color(0xFF00E676) else Color(0xFF64748B),
-                        backgroundColor = if (alarm.isEnabled) Color(0xFF0F261B) else Color(0xFF151821)
-                    )
-                }
-
-                // Snooze Badge
-                if (alarm.snoozeEnabled) {
-                    BadgePill(
-                        icon = null,
-                        text = "💤 Snooze ${alarm.snoozeMinutes}m",
-                        textColor = if (alarm.isEnabled) Color(0xFF38BDF8) else Color(0xFF64748B),
-                        backgroundColor = if (alarm.isEnabled) Color(0xFF122436) else Color(0xFF151821)
+                        textColor = if (alarm.isEnabled) LuxuryPlatinumSubtitle else Color(0xFF64748B),
+                        backgroundColor = if (alarm.isEnabled) Color(0xFF1A2334) else Color(0xFF151821)
                     )
                 }
             }
@@ -774,21 +788,26 @@ fun RepeatDaysRow(
         dayMap.forEach { (calDay, letter) ->
             val isActive = calDay in activeDays
             val bg = when {
-                isActive && isAlarmEnabled -> Color(0xFF00E676).copy(alpha = 0.2f)
+                isActive && isAlarmEnabled -> LuxuryChampagneGold.copy(alpha = 0.2f)
                 isActive && !isAlarmEnabled -> Color(0xFF334155)
-                else -> Color(0xFF151A24)
+                else -> Color(0xFF121824)
             }
             val textColor = when {
-                isActive && isAlarmEnabled -> Color(0xFF00E676)
-                isActive && !isAlarmEnabled -> Color(0xFF94A3B8)
+                isActive && isAlarmEnabled -> LuxuryChampagneGold
+                isActive && !isAlarmEnabled -> LuxuryPlatinumSubtitle
                 else -> Color(0xFF475569)
             }
 
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
-                    .background(bg),
+                    .background(bg)
+                    .border(
+                        width = if (isActive && isAlarmEnabled) 0.8.dp else 0.dp,
+                        color = if (isActive && isAlarmEnabled) LuxuryChampagneGold.copy(alpha = 0.6f) else Color.Transparent,
+                        shape = CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -813,6 +832,7 @@ fun BadgePill(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
+            .border(0.8.dp, textColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -836,11 +856,9 @@ fun BadgePill(
 
 @Composable
 fun EmptyAlarmsCard(onSetAlarm: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1522)),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
+    LuxuryGlassCard(
+        cornerRadius = 22.dp,
+        borderBrush = LuxuryBrushes.specularBorder
     ) {
         Column(
             modifier = Modifier
@@ -852,14 +870,15 @@ fun EmptyAlarmsCard(onSetAlarm: () -> Unit) {
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1A2234)),
+                    .background(LuxuryChampagneGold.copy(alpha = 0.12f))
+                    .border(1.dp, LuxuryChampagneGold.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Alarm,
                     contentDescription = null,
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(32.dp)
+                    tint = LuxuryChampagneGold,
+                    modifier = Modifier.size(30.dp)
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -867,31 +886,33 @@ fun EmptyAlarmsCard(onSetAlarm: () -> Unit) {
                 text = "NO ACTIVE ALARMS",
                 color = Color.White,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.2.sp
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Set an unyielding alarm protocol with 12 high-decibel sounds and math wake-up missions.",
-                color = Color(0xFF94A3B8),
+                text = "Set an unyielding alarm protocol with 12 high-decibel sounds, 5 Math (+/-) questions, 10s memory code & 5m follow-up verification.",
+                color = LuxuryPlatinumSubtitle,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                modifier = Modifier.padding(horizontal = 12.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(20.dp))
             Button(
                 onClick = onSetAlarm,
-                modifier = Modifier.jellyElastic(baseCornerRadius = 12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF2E54)
-                ),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .jellyElastic(baseCornerRadius = 14.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(LuxuryBrushes.sapphireButtonGradient)
             ) {
                 Text(
-                    text = "CREATE HARD ALARM",
+                    text = "➕ Create Hard Alarm",
                     color = Color.White,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Black,
                     fontSize = 13.sp
                 )
             }

@@ -33,3 +33,21 @@ val NeonPurple = Color(0xFF9B5DE5)
 val TextPrimary = Color(0xFFFFFFFF)
 val TextSecondary = Color(0xFF8A99AD)
 val TextMuted = Color(0xFF5E6D82)
+
+// Obsidian Titanium, Deep Glass & Champagne Gold Executive Palette
+val LuxuryBgTop = Color(0xFF06080D)
+val LuxuryBgMid = Color(0xFF0B101B)
+val LuxuryBgBottom = Color(0xFF070A10)
+
+val LuxuryCardTop = Color(0xFF151D2C)
+val LuxuryCardBottom = Color(0xFF0E1420)
+val LuxuryBorderStart = Color(0xFF2E3D59)
+val LuxuryBorderEnd = Color(0xFF182232)
+
+val LuxuryChampagneGold = Color(0xFFE5C158)
+val LuxurySapphireCyan = Color(0xFF38BDF8)
+val LuxuryTacticalEmerald = Color(0xFF10B981)
+val LuxuryCrimsonAlert = Color(0xFFFF2E54)
+val LuxuryPlatinumSubtitle = Color(0xFF94A3B8)
+val LuxuryNavSurface = Color(0xFF0A0E17)
+val LuxuryNavSpecularBorder = Color(0xFF1E293B)

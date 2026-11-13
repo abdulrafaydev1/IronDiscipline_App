@@ -54,14 +54,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.irondiscipline.app.domain.model.PermissionStatusState
 import com.irondiscipline.app.ui.components.ChangeSecurityPinDialog
+import com.irondiscipline.app.ui.components.LuxuryBrushes
+import com.irondiscipline.app.ui.components.LuxuryGlassCard
+import com.irondiscipline.app.ui.components.LuxurySectionHeader
+import com.irondiscipline.app.ui.components.LuxuryStatusPill
 import com.irondiscipline.app.ui.components.UninstallPinDialog
 import com.irondiscipline.app.ui.components.jellyElastic
+import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
+import com.irondiscipline.app.ui.theme.LuxuryCrimsonAlert
+import com.irondiscipline.app.ui.theme.LuxuryPlatinumSubtitle
+import com.irondiscipline.app.ui.theme.LuxurySapphireCyan
+import com.irondiscipline.app.ui.theme.LuxuryTacticalEmerald
 import com.irondiscipline.app.util.PermissionHelper
 
 // Obsidian Palette
@@ -120,55 +130,69 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(ColorObsidianDeep, ColorObsidianSlate)
-                )
-            )
+            .background(LuxuryBrushes.primaryBackground)
             .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Settings Header
-        Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp)) {
-            Text(
-                text = "SYSTEM SETTINGS",
-                color = ColorTextPrimary,
-                fontWeight = FontWeight.Black,
-                fontSize = 22.sp,
-                letterSpacing = 1.5.sp
-            )
-            Text(
-                text = "PERMISSIONS & PROTECTION PROTOCOLS",
-                color = ColorTextSecondary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                letterSpacing = 1.0.sp
-            )
+        // 1. Executive Settings Header Card
+        LuxuryGlassCard(
+            cornerRadius = 24.dp,
+            borderBrush = LuxuryBrushes.activeHighlightBorder
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SYSTEM SETTINGS",
+                        style = TextStyle(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color.White, LuxuryChampagneGold)
+                            ),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 21.sp,
+                            letterSpacing = 1.8.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "ACCESSIBILITY, DEVICE ADMIN & SECURITY SUITE",
+                        color = LuxuryPlatinumSubtitle,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        letterSpacing = 1.1.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                LuxuryStatusPill(
+                    text = if (permissionState.allCriticalGranted) "🛡️ ARMED" else "⚠️ SETUP",
+                    accentColor = if (permissionState.allCriticalGranted) {
+                        LuxuryTacticalEmerald
+                    } else {
+                        LuxuryChampagneGold
+                    },
+                    showDot = true
+                )
+            }
         }
 
         // 2. Section: System Permissions Status
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "SHIELD PERMISSION PROTOCOLS (4)",
-                color = ColorTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.2.sp
-            )
-            Text(
-                text = if (permissionState.allCriticalGranted) "ALL CRITICAL ARMED" else "ACTION REQUIRED",
-                color = if (permissionState.allCriticalGranted) ColorElectricEmerald else ColorCyberAmber,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
+        LuxurySectionHeader(
+            title = "SHIELD PERMISSION PROTOCOLS",
+            trailingText = if (permissionState.allCriticalGranted) "ALL CRITICAL ARMED" else "ACTION REQUIRED",
+            trailingColor = if (permissionState.allCriticalGranted) {
+                LuxuryTacticalEmerald
+            } else {
+                LuxuryChampagneGold
+            }
+        )
 
         // Permission Card 1: Accessibility Service
         PermissionItemCard(
@@ -277,55 +301,47 @@ fun SettingsScreen(
             onClick = onRefreshPermissions,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(46.dp)
-                .jellyElastic(baseCornerRadius = 13.dp),
-            shape = RoundedCornerShape(13.dp),
-            border = BorderStroke(1.dp, Color(0xFF26334D))
+                .height(48.dp)
+                .jellyElastic(baseCornerRadius = 14.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, LuxurySapphireCyan.copy(alpha = 0.45f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color(0xFF0C1424),
+                contentColor = LuxurySapphireCyan
+            )
         ) {
             Icon(
                 imageVector = Icons.Default.Refresh,
                 contentDescription = null,
-                tint = ColorSkyBlue,
+                tint = LuxurySapphireCyan,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Verify & Refresh Permission Status",
-                color = ColorSkyBlue,
-                fontWeight = FontWeight.Bold,
+                color = LuxurySapphireCyan,
+                fontWeight = FontWeight.Black,
                 fontSize = 12.sp
             )
         }
 
         // 3. Core Protection Protocols Summary Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        1.dp,
-                        Brush.linearGradient(listOf(ColorCardBorderStart, ColorCardBorderEnd))
-                    ),
-                    RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = ColorElevatedSlate)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+        LuxuryGlassCard(cornerRadius = 22.dp) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = null,
-                        tint = ColorElectricEmerald,
+                        tint = LuxuryTacticalEmerald,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "CORE PROTECTION PROTOCOLS",
-                        color = ColorTextPrimary,
+                        color = LuxuryChampagneGold,
                         fontWeight = FontWeight.Black,
-                        fontSize = 13.sp,
-                        letterSpacing = 1.0.sp
+                        fontSize = 12.sp,
+                        letterSpacing = 1.2.sp
                     )
                 }
 
@@ -363,14 +379,15 @@ fun SettingsScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF0B0F17))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF080C16))
+                        .border(1.dp, LuxuryBrushes.specularBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     Column {
                         Text(
                             text = "IronDiscipline • v1.0.0 (Production Engine)",
-                            color = ColorTextSecondary,
+                            color = LuxuryPlatinumSubtitle,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
@@ -387,36 +404,27 @@ fun SettingsScreen(
         }
 
         // 4. Emergency & Testing Controls Card (PIN Protected Uninstall & Security PIN Management)
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        1.2.dp,
-                        Brush.linearGradient(
-                            listOf(Color(0xFFFF2E54).copy(alpha = 0.5f), ColorCardBorderEnd)
-                        )
-                    ),
-                    RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = ColorElevatedSlate)
+        LuxuryGlassCard(
+            cornerRadius = 22.dp,
+            borderBrush = Brush.linearGradient(
+                listOf(LuxuryCrimsonAlert.copy(alpha = 0.6f), ColorCardBorderEnd)
+            )
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.WarningAmber,
                         contentDescription = null,
-                        tint = Color(0xFFFF2E54),
+                        tint = LuxuryCrimsonAlert,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "EMERGENCY & TESTING CONTROLS",
-                        color = ColorTextPrimary,
+                        color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp,
-                        letterSpacing = 1.0.sp
+                        letterSpacing = 1.2.sp
                     )
                 }
 
@@ -424,7 +432,7 @@ fun SettingsScreen(
 
                 Text(
                     text = "PIN-guarded controls to disarm protection protocols or cleanly remove the application during development and testing.",
-                    color = ColorTextSecondary,
+                    color = LuxuryPlatinumSubtitle,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -437,13 +445,13 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .jellyElastic(baseCornerRadius = 13.dp),
-                    shape = RoundedCornerShape(13.dp),
+                        .jellyElastic(baseCornerRadius = 14.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF220D14),
-                        contentColor = Color(0xFFFF2E54)
+                        containerColor = LuxuryCrimsonAlert.copy(alpha = 0.14f),
+                        contentColor = LuxuryCrimsonAlert
                     ),
-                    border = BorderStroke(1.2.dp, Color(0xFFFF2E54).copy(alpha = 0.85f))
+                    border = BorderStroke(1.2.dp, LuxuryCrimsonAlert.copy(alpha = 0.85f))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -465,12 +473,13 @@ fun SettingsScreen(
                     onClick = { showChangePinDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .jellyElastic(baseCornerRadius = 13.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    border = BorderStroke(1.dp, ColorSkyBlue.copy(alpha = 0.6f)),
+                        .height(46.dp)
+                        .jellyElastic(baseCornerRadius = 14.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, LuxuryChampagneGold.copy(alpha = 0.55f)),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = ColorSkyBlue
+                        containerColor = Color(0xFF0C1322),
+                        contentColor = LuxuryChampagneGold
                     )
                 ) {
                     Icon(
@@ -492,23 +501,23 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(Color(0xFF0F1522))
-                        .border(1.dp, Color(0xFF1E2D40), RoundedCornerShape(13.dp))
-                        .padding(12.dp),
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF0B111E))
+                        .border(1.dp, LuxuryBrushes.specularBorder, RoundedCornerShape(14.dp))
+                        .padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "🛠️ Dev Test Dismiss on Alarm",
-                            color = ColorTextPrimary,
+                            color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Shows instant bypass button on alarm screen for developer debugging.",
-                            color = ColorTextSecondary,
+                            color = LuxuryPlatinumSubtitle,
                             fontSize = 10.sp,
                             lineHeight = 14.sp
                         )
@@ -524,8 +533,8 @@ fun SettingsScreen(
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color(0xFF06080E),
-                            checkedTrackColor = ColorCyberAmber,
-                            uncheckedThumbColor = ColorTextMuted,
+                            checkedTrackColor = LuxuryChampagneGold,
+                            uncheckedThumbColor = LuxuryPlatinumSubtitle,
                             uncheckedTrackColor = Color(0xFF1E293B)
                         )
                     )
@@ -549,20 +558,15 @@ private fun PermissionItemCard(
     actionLabel: String,
     onActionClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                BorderStroke(
-                    1.dp,
-                    if (isGranted) Color(0xFF1E2D40) else ColorCyberAmber.copy(alpha = 0.5f)
-                ),
-                RoundedCornerShape(18.dp)
-            ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = ColorElevatedSlate)
+    LuxuryGlassCard(
+        cornerRadius = 22.dp,
+        borderBrush = if (isGranted) {
+            LuxuryBrushes.specularBorder
+        } else {
+            Brush.linearGradient(listOf(LuxuryChampagneGold, LuxurySapphireCyan))
+        }
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -574,58 +578,50 @@ private fun PermissionItemCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isGranted) Color(0x1A00E676) else Color(0x26FFB300)
+                                if (isGranted) LuxuryTacticalEmerald.copy(alpha = 0.14f)
+                                else LuxuryChampagneGold.copy(alpha = 0.14f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isGranted) LuxuryTacticalEmerald.copy(alpha = 0.35f)
+                                else LuxuryChampagneGold.copy(alpha = 0.45f),
+                                RoundedCornerShape(12.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = if (isGranted) ColorElectricEmerald else ColorCyberAmber,
+                            tint = if (isGranted) LuxuryTacticalEmerald else LuxuryChampagneGold,
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = title,
-                        color = ColorTextPrimary,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 15.sp
                     )
                 }
 
-                // Status Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (isGranted) Color(0x1A00E676) else Color(0x26FFB300)
-                        )
-                        .border(
-                            width = 0.8.dp,
-                            color = if (isGranted) ColorElectricEmerald else ColorCyberAmber,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (isGranted) "ACTIVE" else "ACTION REQUIRED",
-                        color = if (isGranted) ColorElectricEmerald else ColorCyberAmber,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 9.sp,
-                        letterSpacing = 0.8.sp
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+
+                LuxuryStatusPill(
+                    text = if (isGranted) "ACTIVE" else "ACTION REQUIRED",
+                    accentColor = if (isGranted) LuxuryTacticalEmerald else LuxuryChampagneGold,
+                    showDot = true
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = description,
-                color = ColorTextSecondary,
+                color = LuxuryPlatinumSubtitle,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
             )
@@ -637,12 +633,12 @@ private fun PermissionItemCard(
                     onClick = onActionClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
-                        .jellyElastic(baseCornerRadius = 11.dp),
-                    shape = RoundedCornerShape(11.dp),
+                        .height(44.dp)
+                        .jellyElastic(baseCornerRadius = 12.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ColorCyberAmber,
-                        contentColor = ColorObsidianDeep
+                        containerColor = LuxuryChampagneGold,
+                        contentColor = Color(0xFF05070B)
                     )
                 ) {
                     Text(
@@ -655,21 +651,26 @@ private fun PermissionItemCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF0F1722))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(LuxuryTacticalEmerald.copy(alpha = 0.08f))
+                        .border(
+                            1.dp,
+                            LuxuryTacticalEmerald.copy(alpha = 0.25f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = ColorElectricEmerald,
+                            tint = LuxuryTacticalEmerald,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Permission granted & active",
-                            color = ColorElectricEmerald,
+                            color = LuxuryTacticalEmerald,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
@@ -688,22 +689,22 @@ private fun ProtocolFeatureItem(
     Row(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .padding(top = 2.dp)
+                .padding(top = 4.dp)
                 .size(6.dp)
                 .clip(CircleShape)
-                .background(ColorElectricEmerald)
+                .background(LuxuryTacticalEmerald)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column {
             Text(
                 text = title,
-                color = ColorTextPrimary,
+                color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp
             )
             Text(
                 text = detail,
-                color = ColorTextSecondary,
+                color = LuxuryPlatinumSubtitle,
                 fontSize = 11.sp,
                 lineHeight = 15.sp
             )

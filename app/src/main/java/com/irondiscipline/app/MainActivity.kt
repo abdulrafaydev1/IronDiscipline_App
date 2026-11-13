@@ -8,7 +8,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -58,6 +61,13 @@ import com.irondiscipline.app.ui.screens.DashboardScreen
 import com.irondiscipline.app.ui.screens.SettingsScreen
 import com.irondiscipline.app.ui.screens.TimerScreen
 import com.irondiscipline.app.ui.theme.IronDisciplineTheme
+import com.irondiscipline.app.ui.theme.LuxuryBgTop
+import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
+import com.irondiscipline.app.ui.theme.LuxuryCrimsonAlert
+import com.irondiscipline.app.ui.theme.LuxuryNavSpecularBorder
+import com.irondiscipline.app.ui.theme.LuxuryNavSurface
+import com.irondiscipline.app.ui.theme.LuxurySapphireCyan
+import com.irondiscipline.app.ui.theme.LuxuryTacticalEmerald
 import com.irondiscipline.app.ui.viewmodel.MainViewModel
 
 /**
@@ -71,22 +81,22 @@ enum class MainNavTab(
     DASHBOARD(
         label = "Dashboard",
         icon = Icons.Default.Shield,
-        accentColor = Color(0xFF00E676)
+        accentColor = LuxuryChampagneGold
     ),
     ALARM(
         label = "Alarm",
         icon = Icons.Default.Alarm,
-        accentColor = Color(0xFFFF2E54)
+        accentColor = LuxurySapphireCyan
     ),
     TIMER(
         label = "Timer",
         icon = Icons.Default.Timer,
-        accentColor = Color(0xFFFFB300)
+        accentColor = LuxuryChampagneGold
     ),
     SETTINGS(
         label = "Settings",
         icon = Icons.Default.Settings,
-        accentColor = Color(0xFF38BDF8)
+        accentColor = LuxurySapphireCyan
     )
 }
 
@@ -197,76 +207,76 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
     }
 
     Scaffold(
-        containerColor = Color(0xFF06080E),
+        containerColor = LuxuryBgTop,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            NavigationBar(
-                containerColor = Color(0xFF0B0F19),
-                modifier = Modifier.border(
-                    BorderStroke(
-                        1.dp,
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF1E293B), Color(0xFF0B0F19))
-                        )
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(LuxuryNavSpecularBorder)
                 )
-            ) {
-                MainNavTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        modifier = Modifier.jellyElastic(
-                            enabled = true,
-                            baseCornerRadius = 24.dp,
-                            maxTranslationDp = 16.dp,
-                            maxStretchScale = 0.25f
-                        ),
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        icon = {
-                            if (tab == MainNavTab.TIMER &&
-                                (proTimerState == ProTimerState.RUNNING || proTimerState == ProTimerState.FINISHED_RINGING)
-                            ) {
-                                Box {
+                NavigationBar(
+                    containerColor = LuxuryNavSurface
+                ) {
+                    MainNavTab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            modifier = Modifier.jellyElastic(
+                                enabled = true,
+                                baseCornerRadius = 24.dp,
+                                maxTranslationDp = 16.dp,
+                                maxStretchScale = 0.25f
+                            ),
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = {
+                                if (tab == MainNavTab.TIMER &&
+                                    (proTimerState == ProTimerState.RUNNING || proTimerState == ProTimerState.FINISHED_RINGING)
+                                ) {
+                                    Box {
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = tab.label
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (proTimerState == ProTimerState.FINISHED_RINGING) {
+                                                        LuxuryCrimsonAlert
+                                                    } else {
+                                                        LuxuryTacticalEmerald
+                                                    }
+                                                )
+                                        )
+                                    }
+                                } else {
                                     Icon(
                                         imageVector = tab.icon,
                                         contentDescription = tab.label
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (proTimerState == ProTimerState.FINISHED_RINGING) {
-                                                    Color(0xFFFF2E54)
-                                                } else {
-                                                    Color(0xFF00E676)
-                                                }
-                                            )
-                                    )
                                 }
-                            } else {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = tab.label
+                            },
+                            label = {
+                                Text(
+                                    text = tab.label,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
                                 )
-                            }
-                        },
-                        label = {
-                            Text(
-                                text = tab.label,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                maxLines = 1
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = tab.accentColor,
+                                selectedTextColor = tab.accentColor,
+                                unselectedIconColor = Color(0xFF64748B),
+                                unselectedTextColor = Color(0xFF64748B),
+                                indicatorColor = LuxurySapphireCyan.copy(alpha = 0.14f)
                             )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = tab.accentColor,
-                            selectedTextColor = tab.accentColor,
-                            unselectedIconColor = Color(0xFF64748B),
-                            unselectedTextColor = Color(0xFF64748B),
-                            indicatorColor = tab.accentColor.copy(alpha = 0.15f)
                         )
-                    )
+                    }
                 }
             }
         }
@@ -292,8 +302,7 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
                     onSwitchBackToNormalThirtyMinMode = viewModel::switchBackToNormalThirtyMinModeAndReset,
                     onRefreshPermissions = viewModel::refreshPermissionsAndApps,
                     onVerifyPin = viewModel::verifyUninstallPin,
-                    onConfirmUninstall = viewModel::executeAuthorizedUninstall,
-                    onNavigateToTimerTab = { selectedTab = MainNavTab.TIMER }
+                    onConfirmUninstall = viewModel::executeAuthorizedUninstall
                 )
                 MainNavTab.ALARM -> AlarmScreen(
                     alarmRepository = alarmRepository

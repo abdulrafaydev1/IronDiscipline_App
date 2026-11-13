@@ -78,7 +78,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.irondiscipline.app.ui.components.LuxuryBrushes
+import com.irondiscipline.app.ui.components.LuxuryGlassCard
+import com.irondiscipline.app.ui.components.LuxuryStatusPill
 import com.irondiscipline.app.ui.components.jellyElastic
+import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
+import com.irondiscipline.app.ui.theme.LuxuryCrimsonAlert
+import com.irondiscipline.app.ui.theme.LuxuryPlatinumSubtitle
+import com.irondiscipline.app.ui.theme.LuxurySapphireCyan
+import com.irondiscipline.app.ui.theme.LuxuryTacticalEmerald
 
 /**
  * Full-Screen Obsidian Dark-Luxury Pro Countdown Timer Dialog.
@@ -159,13 +167,13 @@ fun ProTimerContent(
         (remainingMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    // Extra 4: Dynamic Color Shift
+    // Extra 4: Dynamic Color Shift (Cyan -> Champagne Gold -> Crimson)
     val arcColor by animateColorAsState(
         targetValue = when {
-            timerState == ProTimerState.FINISHED_RINGING -> Color(0xFFFF2E54)
-            progress > 0.5f -> Color(0xFF38BDF8) // Cyan
-            progress in 0.2f..0.5f -> Color(0xFFF59E0B) // Amber
-            else -> Color(0xFFFF2E54) // Crimson Red
+            timerState == ProTimerState.FINISHED_RINGING -> LuxuryCrimsonAlert
+            progress > 0.5f -> LuxurySapphireCyan
+            progress in 0.2f..0.5f -> LuxuryChampagneGold
+            else -> LuxuryCrimsonAlert
         },
         label = "ArcColorShift"
     )
@@ -175,15 +183,7 @@ fun ProTimerContent(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF04070D),
-                        Color(0xFF0A1220),
-                        Color(0xFF050811)
-                    )
-                )
-            )
+            .background(LuxuryBrushes.primaryBackground)
             .padding(horizontal = 16.dp, vertical = 16.dp)
     ) {
         Column(
@@ -192,262 +192,294 @@ fun ProTimerContent(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Bar (Title, Subtitle & Optional Dismiss Cross)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Luxury Executive Header Card
+            LuxuryGlassCard(
+                cornerRadius = 22.dp,
+                borderBrush = LuxuryBrushes.specularBorder
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "⏱️ PRO COUNTDOWN TIMER",
-                            color = Color(0xFF38BDF8),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.0.sp
-                        )
-                        if (timerState == ProTimerState.RUNNING) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0x3300E676))
-                                    .border(1.dp, Color(0xFF00E676), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "⏱️ PRO COUNTDOWN TIMER",
+                                style = TextStyle(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(Color.White, LuxuryChampagneGold)
+                                    )
+                                ),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.2.sp
+                            )
+                            if (timerState == ProTimerState.RUNNING) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                LuxuryStatusPill(
                                     text = "LIVE",
-                                    color = Color(0xFF00E676),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black
+                                    accentColor = LuxuryTacticalEmerald,
+                                    showDot = true
                                 )
                             }
                         }
-                    }
-                    Text(
-                        text = "Precision Countdown • 10 Synthesized Sounds • Background Active",
-                        color = Color(0xFF8A99AD),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                if (showCloseButton) {
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF161F30))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "PRECISION CHRONOGRAPH • 10 SYNTHESIZED SOUNDS",
+                            color = LuxuryPlatinumSubtitle,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.0.sp
                         )
+                    }
+
+                    if (showCloseButton) {
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1A2438))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
 
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-                // Extra 3: Custom Task Label Input Field
-                OutlinedTextField(
-                    value = timerLabel,
-                    onValueChange = { ProTimerManager.setTimerLabel(it) },
-                    placeholder = { Text("Timer Task Label (e.g., Study, Gym, Coding)", color = Color(0xFF5E6D82)) },
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF38BDF8),
-                        unfocusedBorderColor = Color(0xFF26334D),
-                        focusedContainerColor = Color(0xFF0C1320),
-                        unfocusedContainerColor = Color(0xFF0C1320)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+            // Extra 3: Custom Task Label Input Field
+            OutlinedTextField(
+                value = timerLabel,
+                onValueChange = { ProTimerManager.setTimerLabel(it) },
+                placeholder = { Text("Timer Task Label (e.g., Study, Gym, Coding)", color = Color(0xFF64748B)) },
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = LuxuryChampagneGold,
+                    unfocusedBorderColor = Color(0xFF2E3D59),
+                    focusedContainerColor = Color(0xFF0E1420),
+                    unfocusedContainerColor = Color(0xFF0E1420)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                // =====================================================================
-                // CORE 1 + EXTRA 4: CIRCULAR PROGRESS RING & PRECISE DIGITAL READOUT
-                // =====================================================================
+            // =====================================================================
+            // CORE 1 + EXTRA 4: ELEVATED OBSIDIAN CENTER STAGE DOUBLE-RING DIAL
+            // =====================================================================
+            val dialBorderBrush = when (timerState) {
+                ProTimerState.FINISHED_RINGING -> Brush.linearGradient(listOf(LuxuryCrimsonAlert, Color(0xFF991B1B)))
+                ProTimerState.RUNNING -> LuxuryBrushes.activeHighlightBorder
+                else -> LuxuryBrushes.specularBorder
+            }
+
+            LuxuryGlassCard(
+                cornerRadius = 22.dp,
+                borderBrush = dialBorderBrush,
+                borderWidth = if (timerState == ProTimerState.RUNNING || timerState == ProTimerState.FINISHED_RINGING) 1.4.dp else 1.dp
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(250.dp)
-                        .padding(8.dp),
+                        .fillMaxWidth()
+                        .padding(vertical = 22.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Circular Progress Canvas
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val strokeWidth = 13.dp.toPx()
-                        val diameter = size.minDimension - strokeWidth
-                        val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
-                        val arcSize = Size(diameter, diameter)
+                    Box(
+                        modifier = Modifier
+                            .size(246.dp)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Double-Ring Track + Glowing Gradient Progress Canvas
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val outerStroke = 14.dp.toPx()
+                            val innerStroke = 2.dp.toPx()
+                            val diameter = size.minDimension - outerStroke
+                            val topLeft = Offset(outerStroke / 2f, outerStroke / 2f)
+                            val arcSize = Size(diameter, diameter)
 
-                        // Background track arc
-                        drawArc(
-                            color = Color(0xFF182234),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                        )
-
-                        // Active Glowing Progress Arc
-                        if (timerState != ProTimerState.FINISHED_RINGING) {
+                            // Outer dark recessed ring track
                             drawArc(
-                                color = arcColor,
-                                startAngle = -90f,
-                                sweepAngle = 360f * progress,
-                                useCenter = false,
-                                topLeft = topLeft,
-                                size = arcSize,
-                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                            )
-                        } else {
-                            // Pulsing full crimson ring when ringing
-                            drawArc(
-                                color = Color(0xFFFF2E54).copy(alpha = pulseAlpha),
+                                color = Color(0xFF0A0E17),
                                 startAngle = -90f,
                                 sweepAngle = 360f,
                                 useCenter = false,
                                 topLeft = topLeft,
                                 size = arcSize,
-                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                                style = Stroke(width = outerStroke, cap = StrokeCap.Round)
                             )
-                        }
-                    }
 
-                    // Digital Readout Content
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        if (timerState == ProTimerState.FINISHED_RINGING) {
-                            // Extra 6: Overtime Counter After Zero
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = Color(0xFFFF2E54),
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .alpha(pulseAlpha)
+                            // Subtle metallic inner specular ring track (double-ring depth)
+                            val innerInset = outerStroke + 8.dp.toPx()
+                            val innerDiameter = (size.minDimension - innerInset).coerceAtLeast(1f)
+                            drawArc(
+                                color = Color(0xFF2E3D59).copy(alpha = 0.5f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                topLeft = Offset(innerInset / 2f, innerInset / 2f),
+                                size = Size(innerDiameter, innerDiameter),
+                                style = Stroke(width = innerStroke, cap = StrokeCap.Round)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "TIME IS UP!",
-                                color = Color(0xFFFF2E54),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = "+${ProTimerManager.formatOvertime(overtimeMs)}",
-                                color = Color(0xFFFFB300),
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = "OVERTIME ELAPSED",
-                                color = Color(0xFF8A99AD),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        } else {
-                            // Status Pill
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        when (timerState) {
-                                            ProTimerState.RUNNING -> Color(0x3300E676)
-                                            ProTimerState.PAUSED -> Color(0x33FFB300)
-                                            else -> Color(0x3338BDF8)
-                                        }
+
+                            // Active Glowing Gradient Progress Arc
+                            if (timerState != ProTimerState.FINISHED_RINGING) {
+                                val sweepBrush = Brush.sweepGradient(
+                                    colors = listOf(
+                                        LuxuryChampagneGold,
+                                        arcColor,
+                                        LuxurySapphireCyan,
+                                        LuxuryChampagneGold
                                     )
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
+                                )
+                                drawArc(
+                                    brush = sweepBrush,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * progress,
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = arcSize,
+                                    style = Stroke(width = outerStroke, cap = StrokeCap.Round)
+                                )
+                            } else {
+                                // Pulsing full crimson ring when ringing
+                                drawArc(
+                                    color = LuxuryCrimsonAlert.copy(alpha = pulseAlpha),
+                                    startAngle = -90f,
+                                    sweepAngle = 360f,
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = arcSize,
+                                    style = Stroke(width = outerStroke, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+
+                        // Digital Readout Content
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            if (timerState == ProTimerState.FINISHED_RINGING) {
+                                // Extra 6: Overtime Counter After Zero
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = LuxuryCrimsonAlert,
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .alpha(pulseAlpha)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
+                                    text = "TIME IS UP!",
+                                    color = LuxuryCrimsonAlert,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.2.sp
+                                )
+                                Text(
+                                    text = "+${ProTimerManager.formatOvertime(overtimeMs)}",
+                                    color = LuxuryChampagneGold,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    text = "OVERTIME ELAPSED",
+                                    color = LuxuryPlatinumSubtitle,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp
+                                )
+                            } else {
+                                LuxuryStatusPill(
                                     text = when (timerState) {
                                         ProTimerState.RUNNING -> "RUNNING"
                                         ProTimerState.PAUSED -> "PAUSED"
                                         else -> "READY"
                                     },
-                                    color = when (timerState) {
-                                        ProTimerState.RUNNING -> Color(0xFF00E676)
-                                        ProTimerState.PAUSED -> Color(0xFFFFB300)
-                                        else -> Color(0xFF38BDF8)
-                                    },
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.8.sp
+                                    accentColor = when (timerState) {
+                                        ProTimerState.RUNNING -> LuxuryTacticalEmerald
+                                        ProTimerState.PAUSED -> LuxuryChampagneGold
+                                        else -> LuxurySapphireCyan
+                                    }
                                 )
-                            }
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                            // Extra 4: HH:MM:SS.d Digits Readout
-                            val totalSec = (remainingMs / 1000L).coerceAtLeast(0L)
-                            val hours = totalSec / 3600L
-                            val mins = (totalSec % 3600L) / 60L
-                            val secs = totalSec % 60L
-                            val deci = ((remainingMs % 1000L) / 100L).coerceIn(0L, 9L)
+                                // Extra 4: HH:MM:SS.d Digits Readout
+                                val totalSec = (remainingMs / 1000L).coerceAtLeast(0L)
+                                val hours = totalSec / 3600L
+                                val mins = (totalSec % 3600L) / 60L
+                                val secs = totalSec % 60L
+                                val deci = ((remainingMs % 1000L) / 100L).coerceIn(0L, 9L)
 
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(
-                                    text = if (hours > 0) {
-                                        String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, mins, secs)
-                                    } else {
-                                        String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                                    },
-                                    color = Color.White,
-                                    fontSize = if (hours > 0) 30.sp else 36.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    text = ".$deci",
-                                    color = arcColor,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.padding(bottom = 3.dp)
-                                )
-                            }
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = if (hours > 0) {
+                                            String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, mins, secs)
+                                        } else {
+                                            String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                                        },
+                                        color = Color.White,
+                                        fontSize = if (hours > 0) 30.sp else 38.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Text(
+                                        text = ".$deci",
+                                        color = arcColor,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                }
 
-                            if (isLoopEnabled) {
-                                Text(
-                                    text = "🔁 Cycle #${completedCycles + 1}",
-                                    color = Color(0xFF38BDF8),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            } else {
-                                Text(
-                                    text = "Total: ${ProTimerManager.formatTime(totalDurationMs)}",
-                                    color = Color(0xFF8A99AD),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                if (isLoopEnabled) {
+                                    Text(
+                                        text = "🔁 Cycle #${completedCycles + 1}",
+                                        color = LuxuryChampagneGold,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    Text(
+                                        text = "TARGET • ${ProTimerManager.formatTime(totalDurationMs)}",
+                                        color = LuxuryPlatinumSubtitle,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 0.8.sp
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -527,7 +559,7 @@ fun ProTimerContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val quickAdds = listOf(
                         "+30s" to 30L,
@@ -539,17 +571,22 @@ fun ProTimerContent(
                     quickAdds.forEach { (label, secs) ->
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF162030))
-                                .border(1.dp, Color(0xFF26334D), RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(LuxuryBrushes.cardSurface)
+                                .border(
+                                    1.dp,
+                                    LuxurySapphireCyan.copy(alpha = 0.35f),
+                                    RoundedCornerShape(10.dp)
+                                )
                                 .clickable { ProTimerManager.addSeconds(secs) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Text(
                                 text = label,
-                                color = Color(0xFF38BDF8),
+                                color = LuxurySapphireCyan,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = FontFamily.Monospace
                             )
                         }
                     }
@@ -564,7 +601,7 @@ fun ProTimerContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     customPresets.forEach { (name, ms) ->
@@ -572,18 +609,22 @@ fun ProTimerContent(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) Color(0x3338BDF8) else Color(0xFF121A28))
+                                .background(
+                                    if (isSelected) LuxuryChampagneGold.copy(alpha = 0.16f)
+                                    else Color(0xFF101725)
+                                )
                                 .border(
                                     1.dp,
-                                    if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
+                                    if (isSelected) LuxuryChampagneGold
+                                    else LuxurySapphireCyan.copy(alpha = 0.22f),
                                     RoundedCornerShape(10.dp)
                                 )
                                 .clickable { ProTimerManager.applyPreset(ms) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Text(
                                 text = name,
-                                color = if (isSelected) Color(0xFF38BDF8) else Color(0xFFCAD5E2),
+                                color = if (isSelected) LuxuryChampagneGold else LuxuryPlatinumSubtitle,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold
                             )
@@ -594,18 +635,22 @@ fun ProTimerContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF1C2738))
-                            .border(1.dp, Color(0xFF00E676).copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                            .background(LuxuryTacticalEmerald.copy(alpha = 0.14f))
+                            .border(
+                                1.dp,
+                                LuxuryTacticalEmerald.copy(alpha = 0.55f),
+                                RoundedCornerShape(10.dp)
+                            )
                             .clickable {
                                 val label = timerLabel.ifBlank { "Custom" }
                                 val formatted = ProTimerManager.formatTime(totalDurationMs)
                                 ProTimerManager.saveCurrentAsPreset("⭐ $label ($formatted)")
                             }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
                         Text(
                             text = "➕ Save Current",
-                            color = Color(0xFF00E676),
+                            color = LuxuryTacticalEmerald,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black
                         )
@@ -623,11 +668,11 @@ fun ProTimerContent(
                             onClick = { ProTimerManager.start(context) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .jellyElastic(baseCornerRadius = 14.dp),
-                            shape = RoundedCornerShape(14.dp),
+                                .height(54.dp)
+                                .jellyElastic(baseCornerRadius = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00E676),
+                                containerColor = LuxuryTacticalEmerald,
                                 contentColor = Color(0xFF040810)
                             )
                         ) {
@@ -652,11 +697,11 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.pause() },
                                 modifier = Modifier
                                     .weight(1.2f)
-                                    .height(48.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(50.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFFFB300),
+                                    containerColor = LuxuryChampagneGold,
                                     contentColor = Color(0xFF06080E)
                                 )
                             ) {
@@ -670,14 +715,14 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.addLap() },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(50.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF16253B),
-                                    contentColor = Color(0xFF38BDF8)
+                                    containerColor = Color(0xFF0D1729),
+                                    contentColor = LuxurySapphireCyan
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f))
+                                border = BorderStroke(1.dp, LuxurySapphireCyan.copy(alpha = 0.55f))
                             ) {
                                 Icon(imageVector = Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -689,14 +734,14 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.reset() },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(50.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF1C2230),
-                                    contentColor = Color(0xFFFF4D6D)
+                                    containerColor = Color(0xFF141824),
+                                    contentColor = LuxuryCrimsonAlert
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFF38435E))
+                                border = BorderStroke(1.dp, LuxuryCrimsonAlert.copy(alpha = 0.45f))
                             ) {
                                 Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -715,11 +760,11 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.resume(context) },
                                 modifier = Modifier
                                     .weight(1.5f)
-                                    .height(48.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(50.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF00E676),
+                                    containerColor = LuxuryTacticalEmerald,
                                     contentColor = Color(0xFF040810)
                                 )
                             ) {
@@ -733,14 +778,14 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.reset() },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(50.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF1C2230),
-                                    contentColor = Color(0xFFFF4D6D)
+                                    containerColor = Color(0xFF141824),
+                                    contentColor = LuxuryCrimsonAlert
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFF38435E))
+                                border = BorderStroke(1.dp, LuxuryCrimsonAlert.copy(alpha = 0.45f))
                             ) {
                                 Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -760,10 +805,10 @@ fun ProTimerContent(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(54.dp)
-                                    .jellyElastic(baseCornerRadius = 14.dp),
-                                shape = RoundedCornerShape(14.dp),
+                                    .jellyElastic(baseCornerRadius = 16.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFFF2E54),
+                                    containerColor = LuxuryCrimsonAlert,
                                     contentColor = Color.White
                                 )
                             ) {
@@ -782,14 +827,14 @@ fun ProTimerContent(
                                 onClick = { ProTimerManager.restartSameTimer(context) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(46.dp)
-                                    .jellyElastic(baseCornerRadius = 12.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(48.dp)
+                                    .jellyElastic(baseCornerRadius = 14.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF16253B),
-                                    contentColor = Color(0xFF38BDF8)
+                                    containerColor = Color(0xFF0D1729),
+                                    contentColor = LuxurySapphireCyan
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f))
+                                border = BorderStroke(1.dp, LuxurySapphireCyan.copy(alpha = 0.55f))
                             ) {
                                 Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -818,7 +863,7 @@ fun ProTimerContent(
                     ToggleFilterChip(
                         label = if (isLoopEnabled) "🔁 Auto-Loop: ON ($completedCycles)" else "🔁 Auto-Loop: OFF",
                         isActive = isLoopEnabled,
-                        activeColor = Color(0xFF38BDF8),
+                        activeColor = LuxurySapphireCyan,
                         onClick = { ProTimerManager.toggleLoop() }
                     )
 
@@ -826,7 +871,7 @@ fun ProTimerContent(
                     ToggleFilterChip(
                         label = if (isFinalTenSecBeepEnabled) "🔟 Last 10s Beep: ON" else "🔟 Last 10s Beep: OFF",
                         isActive = isFinalTenSecBeepEnabled,
-                        activeColor = Color(0xFFFFB300),
+                        activeColor = LuxuryChampagneGold,
                         onClick = { ProTimerManager.toggleFinalTenSecBeep() }
                     )
 
@@ -834,7 +879,7 @@ fun ProTimerContent(
                     ToggleFilterChip(
                         label = if (isKeepScreenOnEnabled) "💡 Keep Screen ON" else "💡 Keep Screen: System",
                         isActive = isKeepScreenOnEnabled,
-                        activeColor = Color(0xFF00E676),
+                        activeColor = LuxuryTacticalEmerald,
                         onClick = { ProTimerManager.toggleKeepScreenOn() }
                     )
                 }
@@ -844,56 +889,54 @@ fun ProTimerContent(
                 // =====================================================================
                 // CORE 3: 5 SOUND TOPICS & 10 SYNTHESIZED SOUNDS WITH PREVIEW
                 // =====================================================================
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, Color(0xFF26334D), RoundedCornerShape(18.dp)),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0C1320))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                LuxuryGlassCard(cornerRadius = 22.dp) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "🎵 TIMER COMPLETION SOUNDS",
-                                color = Color(0xFF38BDF8),
-                                fontSize = 12.sp,
+                                color = LuxuryChampagneGold,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
-                                letterSpacing = 0.8.sp
+                                letterSpacing = 1.2.sp
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "• 5 Topics / 10 Synthesizers",
-                                color = Color(0xFF8A99AD),
+                                text = "• 5 Topics / 10 Synths",
+                                color = LuxuryPlatinumSubtitle,
                                 fontSize = 11.sp
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         // Row 1: 5 Topic Filter Chips
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ProTimerManager.TOPICS.forEach { topic ->
                                 val isSelected = selectedTopic == topic
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0x3338BDF8) else Color(0xFF141C2B))
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isSelected) LuxuryChampagneGold.copy(alpha = 0.16f)
+                                            else Color(0xFF0E1523)
+                                        )
                                         .border(
                                             1.dp,
-                                            if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
-                                            RoundedCornerShape(8.dp)
+                                            if (isSelected) LuxuryChampagneGold
+                                            else LuxurySapphireCyan.copy(alpha = 0.2f),
+                                            RoundedCornerShape(10.dp)
                                         )
                                         .clickable { ProTimerManager.setTopic(topic) }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
                                 ) {
                                     Text(
                                         text = topic,
-                                        color = if (isSelected) Color(0xFF38BDF8) else Color(0xFFCAD5E2),
+                                        color = if (isSelected) LuxuryChampagneGold else LuxuryPlatinumSubtitle,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold
                                     )
@@ -901,28 +944,32 @@ fun ProTimerContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Row 2: Sounds in the Selected Topic
                         val soundsInTopic = ProTimerManager.SOUNDS.filter { it.topic == selectedTopic }
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             soundsInTopic.forEach { sound ->
                                 val isSelected = selectedSoundId == sound.id
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) Color(0xFF152238) else Color(0xFF101726))
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(
+                                            if (isSelected) LuxurySapphireCyan.copy(alpha = 0.11f)
+                                            else Color(0xFF0D1422)
+                                        )
                                         .border(
                                             1.dp,
-                                            if (isSelected) Color(0xFF38BDF8) else Color(0xFF202C40),
-                                            RoundedCornerShape(12.dp)
+                                            if (isSelected) LuxuryBrushes.activeHighlightBorder
+                                            else LuxuryBrushes.specularBorder,
+                                            RoundedCornerShape(14.dp)
                                         )
                                         .clickable {
                                             ProTimerManager.setSelectedSoundId(sound.id)
                                             ProTimerManager.previewSound(sound.id)
                                         }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(horizontal = 14.dp, vertical = 11.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -934,15 +981,15 @@ fun ProTimerContent(
                                             )
                                             Text(
                                                 text = sound.name,
-                                                color = if (isSelected) Color(0xFF38BDF8) else Color.White,
+                                                color = if (isSelected) LuxuryChampagneGold else Color.White,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                         Text(
                                             text = sound.description,
-                                            color = Color(0xFF8A99AD),
-                                            fontSize = 10.sp,
+                                            color = LuxuryPlatinumSubtitle,
+                                            fontSize = 11.sp,
                                             modifier = Modifier.padding(start = 18.dp, top = 2.dp)
                                         )
                                     }
@@ -950,25 +997,28 @@ fun ProTimerContent(
                                     // Preview Button
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) Color(0xFF38BDF8) else Color(0xFF1E2B40))
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isSelected) LuxurySapphireCyan
+                                                else Color(0xFF162235)
+                                            )
                                             .clickable {
                                                 ProTimerManager.setSelectedSoundId(sound.id)
                                                 ProTimerManager.previewSound(sound.id)
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                            .padding(horizontal = 11.dp, vertical = 7.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 imageVector = Icons.Default.VolumeUp,
                                                 contentDescription = null,
-                                                tint = if (isSelected) Color(0xFF040810) else Color(0xFF38BDF8),
+                                                tint = if (isSelected) Color(0xFF040810) else LuxurySapphireCyan,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "Preview",
-                                                color = if (isSelected) Color(0xFF040810) else Color(0xFF38BDF8),
+                                                color = if (isSelected) Color(0xFF040810) else LuxurySapphireCyan,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Black
                                             )
@@ -985,14 +1035,8 @@ fun ProTimerContent(
                 // =====================================================================
                 if (laps.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(18.dp))
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFF26334D), RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0C1320))
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                    LuxuryGlassCard(cornerRadius = 20.dp) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1000,28 +1044,28 @@ fun ProTimerContent(
                             ) {
                                 Text(
                                     text = "🏁 RECORDED LAPS & SPLITS (${laps.size})",
-                                    color = Color(0xFF38BDF8),
+                                    color = LuxurySapphireCyan,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.8.sp
+                                    letterSpacing = 1.sp
                                 )
 
                                 Text(
                                     text = "Clear All",
-                                    color = Color(0xFFFF4D6D),
+                                    color = LuxuryCrimsonAlert,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.clickable { ProTimerManager.clearLaps() }
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             laps.take(6).forEach { lapText ->
                                 Text(
                                     text = lapText,
-                                    color = Color(0xFFCAD5E2),
-                                    fontSize = 11.sp,
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
                                     modifier = Modifier.padding(vertical = 3.dp)
                                 )
@@ -1043,35 +1087,35 @@ private fun DurationStepperCard(
     onPlus: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier
-            .border(1.dp, Color(0xFF26334D), RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1422))
+    LuxuryGlassCard(
+        modifier = modifier,
+        cornerRadius = 16.dp
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = label,
-                color = Color(0xFF8A99AD),
+                color = LuxuryPlatinumSubtitle,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.6.sp
+                letterSpacing = 1.sp
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(5.dp))
 
             Text(
                 text = String.format(java.util.Locale.US, "%02d", value),
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1082,9 +1126,15 @@ private fun DurationStepperCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF162030))
+                        .background(Color(0xFF0E1626))
+                        .border(1.dp, LuxurySapphireCyan.copy(alpha = 0.28f), CircleShape)
                 ) {
-                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Minus", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = "Minus",
+                        tint = LuxurySapphireCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
 
                 IconButton(
@@ -1092,9 +1142,15 @@ private fun DurationStepperCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF162030))
+                        .background(Color(0xFF0E1626))
+                        .border(1.dp, LuxuryChampagneGold.copy(alpha = 0.35f), CircleShape)
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Plus", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Plus",
+                        tint = LuxuryChampagneGold,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
@@ -1110,19 +1166,22 @@ private fun ToggleFilterChip(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (isActive) activeColor.copy(alpha = 0.18f) else Color(0xFF121A28))
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isActive) activeColor.copy(alpha = 0.16f)
+                else Color(0xFF0D1422)
+            )
             .border(
                 1.dp,
-                if (isActive) activeColor else Color(0xFF26334D),
-                RoundedCornerShape(8.dp)
+                if (isActive) activeColor else Color(0xFF233046),
+                RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Text(
             text = label,
-            color = if (isActive) activeColor else Color(0xFFCAD5E2),
+            color = if (isActive) activeColor else LuxuryPlatinumSubtitle,
             fontSize = 11.sp,
             fontWeight = if (isActive) FontWeight.Black else FontWeight.Bold
         )

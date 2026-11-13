@@ -88,6 +88,27 @@ import com.irondiscipline.app.ui.components.jellyElastic
 fun ProTimerDialog(
     onDismiss: () -> Unit
 ) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        ProTimerContent(
+            showCloseButton = true,
+            onClose = onDismiss
+        )
+    }
+}
+
+/**
+ * Shared Pro Countdown Timer UI usable both as a full-screen navigation tab ([TimerScreen])
+ * and inside [ProTimerDialog]. Preserves live state via [ProTimerManager].
+ */
+@Composable
+fun ProTimerContent(
+    showCloseButton: Boolean = false,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val activity = context as? Activity
 
@@ -151,73 +172,70 @@ fun ProTimerDialog(
 
     val scrollState = rememberScrollState()
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF04070D),
-                            Color(0xFF0A1220),
-                            Color(0xFF050811)
-                        )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF04070D),
+                        Color(0xFF0A1220),
+                        Color(0xFF050811)
                     )
                 )
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Header Bar (Title, Subtitle & Optional Dismiss Cross)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Header Bar (Title, Subtitle & Dismiss Cross)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "⏱️ PRO COUNTDOWN TIMER",
-                                color = Color(0xFF38BDF8),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.0.sp
-                            )
-                            if (timerState == ProTimerState.RUNNING) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0x3300E676))
-                                        .border(1.dp, Color(0xFF00E676), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "LIVE",
-                                        color = Color(0xFF00E676),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "⏱️ PRO COUNTDOWN TIMER",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.0.sp
+                        )
+                        if (timerState == ProTimerState.RUNNING) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0x3300E676))
+                                    .border(1.dp, Color(0xFF00E676), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "LIVE",
+                                    color = Color(0xFF00E676),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black
+                                )
                             }
                         }
-                        Text(
-                            text = "Precision Countdown • 10 Synthesized Sounds • Background Active",
-                            color = Color(0xFF8A99AD),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
+                    Text(
+                        text = "Precision Countdown • 10 Synthesized Sounds • Background Active",
+                        color = Color(0xFF8A99AD),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
 
+                if (showCloseButton) {
                     IconButton(
-                        onClick = onDismiss,
+                        onClick = onClose,
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
@@ -231,6 +249,7 @@ fun ProTimerDialog(
                         )
                     }
                 }
+            }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1011,8 +1030,7 @@ fun ProTimerDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

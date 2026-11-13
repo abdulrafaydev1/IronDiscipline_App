@@ -5,15 +5,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,13 +31,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -42,13 +49,46 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.irondiscipline.app.alarm.AlarmRepository
+import com.irondiscipline.app.timer.ProTimerManager
+import com.irondiscipline.app.timer.ProTimerState
 import com.irondiscipline.app.ui.components.jellyElastic
 import com.irondiscipline.app.ui.screens.AlarmScreen
 import com.irondiscipline.app.ui.screens.AppPasswordGateScreen
 import com.irondiscipline.app.ui.screens.DashboardScreen
 import com.irondiscipline.app.ui.screens.SettingsScreen
+import com.irondiscipline.app.ui.screens.TimerScreen
 import com.irondiscipline.app.ui.theme.IronDisciplineTheme
 import com.irondiscipline.app.ui.viewmodel.MainViewModel
+
+/**
+ * Primary bottom-navigation tabs in fixed display order.
+ */
+enum class MainNavTab(
+    val label: String,
+    val icon: ImageVector,
+    val accentColor: Color
+) {
+    DASHBOARD(
+        label = "Dashboard",
+        icon = Icons.Default.Shield,
+        accentColor = Color(0xFF00E676)
+    ),
+    ALARM(
+        label = "Alarm",
+        icon = Icons.Default.Alarm,
+        accentColor = Color(0xFFFF2E54)
+    ),
+    TIMER(
+        label = "Timer",
+        icon = Icons.Default.Timer,
+        accentColor = Color(0xFFFFB300)
+    ),
+    SETTINGS(
+        label = "Settings",
+        icon = Icons.Default.Settings,
+        accentColor = Color(0xFF38BDF8)
+    )
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -107,7 +147,8 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
     val bannerMessage by viewModel.statusBannerMessage.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainNavTab.DASHBOARD) }
+    val proTimerState by ProTimerManager.timerState.collectAsState()
     val context = LocalContext.current
 
     // Auto-prompt Device Admin on app launch if not enabled yet
@@ -170,90 +211,66 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
                     )
                 )
             ) {
-                // Tab 1: Dashboard
-                NavigationBarItem(
-                    modifier = Modifier.jellyElastic(enabled = true, baseCornerRadius = 24.dp, maxTranslationDp = 16.dp, maxStretchScale = 0.25f),
-                    selected = selectedTabIndex == 0,
-                    onClick = { selectedTabIndex = 0 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = "Dashboard"
+                MainNavTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        modifier = Modifier.jellyElastic(
+                            enabled = true,
+                            baseCornerRadius = 24.dp,
+                            maxTranslationDp = 16.dp,
+                            maxStretchScale = 0.25f
+                        ),
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        icon = {
+                            if (tab == MainNavTab.TIMER &&
+                                (proTimerState == ProTimerState.RUNNING || proTimerState == ProTimerState.FINISHED_RINGING)
+                            ) {
+                                Box {
+                                    Icon(
+                                        imageVector = tab.icon,
+                                        contentDescription = tab.label
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (proTimerState == ProTimerState.FINISHED_RINGING) {
+                                                    Color(0xFFFF2E54)
+                                                } else {
+                                                    Color(0xFF00E676)
+                                                }
+                                            )
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.label
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = tab.label,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = tab.accentColor,
+                            selectedTextColor = tab.accentColor,
+                            unselectedIconColor = Color(0xFF64748B),
+                            unselectedTextColor = Color(0xFF64748B),
+                            indicatorColor = tab.accentColor.copy(alpha = 0.15f)
                         )
-                    },
-                    label = {
-                        Text(
-                            text = "Dashboard",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFF00E676),
-                        selectedTextColor = Color(0xFF00E676),
-                        unselectedIconColor = Color(0xFF64748B),
-                        unselectedTextColor = Color(0xFF64748B),
-                        indicatorColor = Color(0xFF00E676).copy(alpha = 0.15f)
                     )
-                )
-
-                // Tab 2: Alarm (Center Tab)
-                NavigationBarItem(
-                    modifier = Modifier.jellyElastic(enabled = true, baseCornerRadius = 24.dp, maxTranslationDp = 16.dp, maxStretchScale = 0.25f),
-                    selected = selectedTabIndex == 1,
-                    onClick = { selectedTabIndex = 1 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Alarm,
-                            contentDescription = "Alarm"
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = "Alarm",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFFFF2E54),
-                        selectedTextColor = Color(0xFFFF2E54),
-                        unselectedIconColor = Color(0xFF64748B),
-                        unselectedTextColor = Color(0xFF64748B),
-                        indicatorColor = Color(0xFFFF2E54).copy(alpha = 0.15f)
-                    )
-                )
-
-                // Tab 3: Settings
-                NavigationBarItem(
-                    modifier = Modifier.jellyElastic(enabled = true, baseCornerRadius = 24.dp, maxTranslationDp = 16.dp, maxStretchScale = 0.25f),
-                    selected = selectedTabIndex == 2,
-                    onClick = { selectedTabIndex = 2 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = "Settings",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFF38BDF8),
-                        selectedTextColor = Color(0xFF38BDF8),
-                        unselectedIconColor = Color(0xFF64748B),
-                        unselectedTextColor = Color(0xFF64748B),
-                        indicatorColor = Color(0xFF38BDF8).copy(alpha = 0.15f)
-                    )
-                )
+                }
             }
         }
     ) { innerPadding ->
-        val context = LocalContext.current
         val alarmRepository = remember { AlarmRepository.getInstance(context) }
 
         Box(
@@ -262,8 +279,8 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
                 .padding(innerPadding)
                 .statusBarsPadding()
         ) {
-            when (selectedTabIndex) {
-                0 -> DashboardScreen(
+            when (selectedTab) {
+                MainNavTab.DASHBOARD -> DashboardScreen(
                     realtimeQuotaState = realtimeQuotaState,
                     permissionState = permissionState,
                     isMasterPasswordEnabled = isMasterPasswordEnabled,
@@ -275,12 +292,14 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
                     onSwitchBackToNormalThirtyMinMode = viewModel::switchBackToNormalThirtyMinModeAndReset,
                     onRefreshPermissions = viewModel::refreshPermissionsAndApps,
                     onVerifyPin = viewModel::verifyUninstallPin,
-                    onConfirmUninstall = viewModel::executeAuthorizedUninstall
+                    onConfirmUninstall = viewModel::executeAuthorizedUninstall,
+                    onNavigateToTimerTab = { selectedTab = MainNavTab.TIMER }
                 )
-                1 -> AlarmScreen(
+                MainNavTab.ALARM -> AlarmScreen(
                     alarmRepository = alarmRepository
                 )
-                2 -> SettingsScreen(
+                MainNavTab.TIMER -> TimerScreen()
+                MainNavTab.SETTINGS -> SettingsScreen(
                     permissionState = permissionState,
                     onRefreshPermissions = viewModel::refreshPermissionsAndApps,
                     onVerifyPin = viewModel::verifyUninstallPin,

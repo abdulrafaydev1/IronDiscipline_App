@@ -161,7 +161,8 @@ fun DashboardScreen(
     onSwitchBackToNormalThirtyMinMode: () -> Unit,
     onRefreshPermissions: () -> Unit = {},
     onVerifyPin: (String) -> Boolean = { true },
-    onConfirmUninstall: () -> Unit = {}
+    onConfirmUninstall: () -> Unit = {},
+    onNavigateToTimerTab: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -316,7 +317,11 @@ fun DashboardScreen(
                 showScreenShareDialog = true
             },
             onProTimerClick = {
-                showProTimerDialog = true
+                if (onNavigateToTimerTab != null) {
+                    onNavigateToTimerTab()
+                } else {
+                    showProTimerDialog = true
+                }
             }
         )
 

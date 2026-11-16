@@ -1,15 +1,9 @@
 package com.irondiscipline.app.ui.screens
 
-import android.Manifest
-import android.app.Activity
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.media.projection.MediaProjectionManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -25,7 +19,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -39,89 +32,50 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessibilityNew
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.irondiscipline.app.FocusDeviceAdminReceiver
-import com.irondiscipline.app.domain.model.AppLockerItem
 import com.irondiscipline.app.domain.model.PermissionStatusState
-import com.irondiscipline.app.screenshare.ScreenViewerEngine
-import com.irondiscipline.app.service.ScreenShareService
-import com.irondiscipline.app.service.ScreenShareSessionManager
-import com.irondiscipline.app.service.ScreenShareState
-import com.irondiscipline.app.service.StreamCryptoEngine
-import com.irondiscipline.app.ui.components.CreatePasswordDialog
-import com.irondiscipline.app.ui.components.LockPhoneAppsDialog
 import com.irondiscipline.app.ui.components.LuxuryBrushes
 import com.irondiscipline.app.ui.components.LuxuryGlassCard
 import com.irondiscipline.app.ui.components.LuxurySectionHeader
 import com.irondiscipline.app.ui.components.LuxuryStatusPill
-import com.irondiscipline.app.ui.components.UninstallPinDialog
 import com.irondiscipline.app.ui.components.jellyElastic
 import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
 import com.irondiscipline.app.ui.theme.LuxuryCrimsonAlert
@@ -135,25 +89,15 @@ import com.irondiscipline.app.util.RealtimeQuotaManager
 import com.irondiscipline.app.util.RealtimeQuotaSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
-// Obsidian Cyber-Discipline Color Palette
+// Obsidian Cyber-Discipline Palette Tokens
 private val ColorObsidianDeep = Color(0xFF06080E)
-private val ColorObsidianSlate = Color(0xFF0D121D)
-private val ColorElevatedSlate = Color(0xFF141B29)
-private val ColorCardBorderStart = Color(0xFF26334D)
-private val ColorCardBorderEnd = Color(0xFF141B29)
-
-private val ColorElectricEmerald = Color(0xFF00E676)
-private val ColorEmeraldDark = Color(0xFF10B981)
 private val ColorCyberAmber = Color(0xFFFFB300)
 private val ColorAmberDark = Color(0xFFF59E0B)
-private val ColorCrimsonNeon = Color(0xFFFF2E54)
 private val ColorCrimsonDark = Color(0xFFDC2626)
 
 private val ColorTextPrimary = Color(0xFFFFFFFF)
 private val ColorTextSecondary = Color(0xFF8A99AD)
-private val ColorTextMuted = Color(0xFF5E6D82)
 
 // App Brand Gradient Definitions
 private val YouTubeGradient = listOf(Color(0xFFFF0033), Color(0xFFCC0000))
@@ -165,16 +109,8 @@ private val TikTokGradient = listOf(Color(0xFF00F2FE), Color(0xFFFE0979))
 fun DashboardScreen(
     realtimeQuotaState: RealtimeQuotaSnapshot,
     permissionState: PermissionStatusState,
-    isMasterPasswordEnabled: Boolean = false,
-    lockedPackages: Set<String> = emptySet(),
-    onSetMasterPassword: (String) -> Unit = {},
-    onToggleCustomPackageLock: (String, Boolean) -> Unit = { _, _ -> },
-    onLoadInstalledApps: suspend () -> List<AppLockerItem> = { emptyList() },
-    onActivateOneMinuteTestMode: () -> Unit,
-    onSwitchBackToNormalThirtyMinMode: () -> Unit,
-    onRefreshPermissions: () -> Unit = {},
-    onVerifyPin: (String) -> Boolean = { true },
-    onConfirmUninstall: () -> Unit = {}
+    onOpenSidebar: () -> Unit = {},
+    onRefreshPermissions: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -208,53 +144,8 @@ fun DashboardScreen(
         }
     }
 
-    val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val isTestMode = realtimeQuotaState.isTestModeActive
-    var showUninstallPinDialog by remember { mutableStateOf(false) }
-    var showCreatePasswordDialog by remember { mutableStateOf(false) }
-    var showLockPhoneAppsDialog by remember { mutableStateOf(false) }
-    var showScreenShareDialog by remember { mutableStateOf(false) }
-    var installedAppsList by remember { mutableStateOf<List<AppLockerItem>>(emptyList()) }
-    var isLoadingApps by remember { mutableStateOf(false) }
-
-    if (showScreenShareDialog) {
-        ScreenShareDialog(
-            onDismiss = { showScreenShareDialog = false }
-        )
-    }
-
-    if (showUninstallPinDialog) {
-        UninstallPinDialog(
-            onDismiss = { showUninstallPinDialog = false },
-            onVerifyPin = onVerifyPin,
-            onConfirmUninstall = {
-                showUninstallPinDialog = false
-                onConfirmUninstall()
-            }
-        )
-    }
-
-    if (showCreatePasswordDialog) {
-        CreatePasswordDialog(
-            isChangePassword = isMasterPasswordEnabled,
-            onDismiss = { showCreatePasswordDialog = false },
-            onConfirmPassword = { newPass ->
-                showCreatePasswordDialog = false
-                onSetMasterPassword(newPass)
-            }
-        )
-    }
-
-    if (showLockPhoneAppsDialog) {
-        LockPhoneAppsDialog(
-            installedApps = installedAppsList,
-            lockedPackages = lockedPackages,
-            onToggleLock = onToggleCustomPackageLock,
-            onDismiss = { showLockPhoneAppsDialog = false },
-            isLoading = isLoadingApps
-        )
-    }
 
     // Calculate aggregated daily statistics for the Hero Gauge
     val totalLimitSeconds = realtimeQuotaState.coreStatuses.sumOf { it.limitSeconds }.coerceAtLeast(1)
@@ -272,15 +163,16 @@ fun DashboardScreen(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        val dpm = remember { context.getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager }
-        val adminComponent = remember { android.content.ComponentName(context, FocusDeviceAdminReceiver::class.java) }
+        val dpm = remember { context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager }
+        val adminComponent = remember { ComponentName(context, FocusDeviceAdminReceiver::class.java) }
         val isDeviceAdminActive = remember(permissionState) {
             try { dpm?.isAdminActive(adminComponent) == true } catch (_: Exception) { false }
         }
 
-        // 1. Top Executive Header Card & Animated Guard Status Pill
+        // 1. Top Executive Header Card with Circular Sidebar Button & Animated Guard Status Pill
         CommandHeaderSection(
             permissionState = permissionState,
+            onOpenSidebar = onOpenSidebar,
             onEnableGuardClick = {
                 try {
                     context.startActivity(PermissionHelper.createAccessibilitySettingsIntent())
@@ -292,10 +184,10 @@ fun DashboardScreen(
         if (!isDeviceAdminActive) {
             DeviceAdminSetupBannerCard(
                 onActivateClick = {
-                    val intent = android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                        putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
                         putExtra(
-                            android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                             "Prevents accidental uninstallation without your 4-digit PIN."
                         )
                     }
@@ -322,7 +214,7 @@ fun DashboardScreen(
             )
         }
 
-        // Section 1: Daily Social Media Quotas (30M Limit)
+        // 4. Daily Social Media Quotas (YouTube, Facebook, Instagram, TikTok)
         LuxurySectionHeader(
             title = if (isTestMode) "DAILY SOCIAL MEDIA QUOTAS (1M TEST)" else "DAILY SOCIAL MEDIA QUOTAS (30M LIMIT)",
             trailingText = if (isTestMode) "DIAGNOSTIC 1-MIN" else "STRICT 30-MIN",
@@ -370,55 +262,17 @@ fun DashboardScreen(
             )
         }
 
-        // Section 2: Security & Live Streaming Suite (No Pro Timer button — moved to Timer tab)
-        LuxurySectionHeader(
-            title = "SECURITY & LIVE STREAMING SUITE",
-            trailingText = if (isMasterPasswordEnabled) "VAULT ARMED" else "SETUP VAULT",
-            trailingColor = if (isMasterPasswordEnabled) LuxuryTacticalEmerald else LuxuryChampagneGold
-        )
-
-        MasterSecurityVaultCard(
-            isMasterPasswordEnabled = isMasterPasswordEnabled,
-            lockedAppsCount = lockedPackages.size,
-            onManagePasswordClick = {
-                showCreatePasswordDialog = true
-            },
-            onLockPhoneAppsClick = {
-                if (!isMasterPasswordEnabled) {
-                    showCreatePasswordDialog = true
-                } else {
-                    showLockPhoneAppsDialog = true
-                    coroutineScope.launch {
-                        isLoadingApps = true
-                        installedAppsList = onLoadInstalledApps()
-                        isLoadingApps = false
-                    }
-                }
-            },
-            onLiveScreenShareClick = {
-                showScreenShareDialog = true
-            }
-        )
-
-        // 4. Tactical Control Capsule (Auto-Resets on Toggle + Emergency Delete App)
-        TacticalControlCapsule(
-            isTestMode = isTestMode,
-            isAnyAppLocked = realtimeQuotaState.anyAppLocked,
-            onActivateOneMinuteTestMode = onActivateOneMinuteTestMode,
-            onSwitchBackToNormalThirtyMinMode = onSwitchBackToNormalThirtyMinMode,
-            onDeleteAppClick = { showUninstallPinDialog = true }
-        )
-
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
 
 /**
- * 1. Top Executive Header Card with metallic typography & pulsating Guard Status Pill.
+ * 1. Top Executive Header Card with Circular Sidebar Button, metallic typography & pulsating Guard Status Pill.
  */
 @Composable
 private fun CommandHeaderSection(
     permissionState: PermissionStatusState,
+    onOpenSidebar: () -> Unit,
     onEnableGuardClick: () -> Unit
 ) {
     val isGuardActive = permissionState.isAccessibilityServiceEnabled
@@ -442,33 +296,71 @@ private fun CommandHeaderSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 16.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "IRON DISCIPLINE",
-                    style = TextStyle(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color.White, LuxuryChampagneGold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Sleek 44.dp Circular Sidebar Trigger Button
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF151D2C), Color(0xFF0E1420))
+                            )
                         )
-                    ),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 22.sp,
-                    letterSpacing = 1.5.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "EXECUTIVE FOCUS & SECURITY SUITE",
-                    color = LuxurySapphireCyan,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.2.sp
-                )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(LuxuryChampagneGold, LuxurySapphireCyan)
+                            ),
+                            shape = CircleShape
+                        )
+                        .jellyElastic(baseCornerRadius = 22.dp)
+                        .clickable(onClick = onOpenSidebar),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Open Navigation Sidebar",
+                        tint = LuxuryChampagneGold,
+                        modifier = Modifier.size(21.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = "IRON DISCIPLINE",
+                        style = TextStyle(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color.White, LuxuryChampagneGold)
+                            )
+                        ),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 19.sp,
+                        letterSpacing = 1.2.sp,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "EXECUTIVE FOCUS & SECURITY",
+                        color = LuxurySapphireCyan,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        letterSpacing = 1.0.sp,
+                        maxLines = 1
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
             LuxuryStatusPill(
                 text = if (isGuardActive) "🛡️ ACTIVE GUARD" else "⚠️ ENABLE GUARD",
@@ -775,168 +667,6 @@ private fun SleekPermissionAlertCard(
 }
 
 /**
- * 4. Tactical Control Capsule (Disabled when any app is locked for 5 hours).
- */
-@Composable
-private fun TacticalControlCapsule(
-    isTestMode: Boolean,
-    isAnyAppLocked: Boolean,
-    onActivateOneMinuteTestMode: () -> Unit,
-    onSwitchBackToNormalThirtyMinMode: () -> Unit,
-    onDeleteAppClick: () -> Unit
-) {
-    val modeAccentColor by animateColorAsState(
-        targetValue = when {
-            isAnyAppLocked -> ColorCrimsonNeon
-            isTestMode -> ColorCyberAmber
-            else -> ColorElectricEmerald
-        },
-        animationSpec = tween(400),
-        label = "ModeAccentColor"
-    )
-
-    LuxuryGlassCard(
-        cornerRadius = 22.dp,
-        borderBrush = if (isAnyAppLocked) {
-            Brush.linearGradient(colors = listOf(LuxuryCrimsonAlert.copy(alpha = 0.7f), ColorCrimsonDark.copy(alpha = 0.35f)))
-        } else {
-            LuxuryBrushes.specularBorder
-        },
-        surfaceBrush = if (isAnyAppLocked) {
-            Brush.verticalGradient(listOf(Color(0xFF210E15), Color(0xFF13090E)))
-        } else {
-            LuxuryBrushes.cardSurface
-        }
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Mode Header Badge
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = when {
-                            isAnyAppLocked -> Icons.Default.Lock
-                            isTestMode -> Icons.Default.Bolt
-                            else -> Icons.Default.Shield
-                        },
-                        contentDescription = null,
-                        tint = modeAccentColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = when {
-                            isAnyAppLocked -> "🔒 UNBREAKABLE 5-HOUR LOCK ACTIVE"
-                            isTestMode -> "⚡ DIAGNOSTIC TEST: 1 MIN / APP"
-                            else -> "🛡️ STRICT PROTOCOL: 30 MINS / APP"
-                        },
-                        color = modeAccentColor,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp,
-                        letterSpacing = 0.8.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Single Full-Width Mode Toggle & Auto-Reset Button
-            Button(
-                onClick = {
-                    if (!isAnyAppLocked) {
-                        if (isTestMode) onSwitchBackToNormalThirtyMinMode() else onActivateOneMinuteTestMode()
-                    }
-                },
-                enabled = !isAnyAppLocked,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .jellyElastic(enabled = !isAnyAppLocked, baseCornerRadius = 13.dp),
-                shape = RoundedCornerShape(13.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = when {
-                        isAnyAppLocked -> Color(0xFF261017)
-                        isTestMode -> Color(0xFF1E283A)
-                        else -> Color(0xFF231C0F)
-                    },
-                    contentColor = when {
-                        isAnyAppLocked -> LuxuryCrimsonAlert
-                        isTestMode -> LuxuryTacticalEmerald
-                        else -> LuxuryChampagneGold
-                    },
-                    disabledContainerColor = Color(0xFF261017),
-                    disabledContentColor = LuxuryCrimsonAlert
-                ),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = when {
-                        isAnyAppLocked -> LuxuryCrimsonAlert
-                        isTestMode -> LuxuryTacticalEmerald
-                        else -> LuxuryChampagneGold.copy(alpha = 0.8f)
-                    }
-                )
-            ) {
-                Icon(
-                    imageVector = when {
-                        isAnyAppLocked -> Icons.Default.Lock
-                        isTestMode -> Icons.Default.Shield
-                        else -> Icons.Default.Bolt
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when {
-                        isAnyAppLocked -> "🔒 LOCKED: Test Mode Disabled Until 5-Hr Lock Expires"
-                        isTestMode -> "🛡️ Switch to 30-Min Normal Mode (Auto-Resets)"
-                        else -> "⚡ Activate 1-Min Test Mode (Auto-Resets)"
-                    },
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Sleek Crimson-Outlined Dark Metallic Uninstall Button (Always 100% Active & Clickable)
-            Button(
-                onClick = onDeleteAppClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .jellyElastic(enabled = true, baseCornerRadius = 13.dp),
-                shape = RoundedCornerShape(13.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF200F15),
-                    contentColor = LuxuryCrimsonAlert
-                ),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = LuxuryCrimsonAlert.copy(alpha = 0.8f)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "🗑️ Delete App (Enter PIN)",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.4.sp
-                )
-            }
-        }
-    }
-}
-
-/**
  * 5. Premium Per-App Flagship Cards (YouTube, Facebook, Instagram, TikTok).
  */
 @Composable
@@ -1167,1312 +897,3 @@ fun DeviceAdminSetupBannerCard(
         }
     }
 }
-
-@Composable
-private fun MasterSecurityVaultCard(
-    isMasterPasswordEnabled: Boolean,
-    lockedAppsCount: Int,
-    onManagePasswordClick: () -> Unit,
-    onLockPhoneAppsClick: () -> Unit,
-    onLiveScreenShareClick: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        // Card A — Master App Locker Vault (Champagne Gold & Cyan border accent)
-        LuxuryGlassCard(
-            cornerRadius = 22.dp,
-            borderBrush = LuxuryBrushes.activeHighlightBorder,
-            modifier = Modifier
-                .jellyElastic(baseCornerRadius = 22.dp)
-                .clickable(onClick = onLockPhoneAppsClick)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(LuxuryChampagneGold.copy(alpha = 0.14f))
-                                .border(1.dp, LuxuryChampagneGold.copy(alpha = 0.7f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = LuxuryChampagneGold,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "🔐 Universal App Locker Vault",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = "$lockedAppsCount phone apps protected by Master Password",
-                                color = LuxuryPlatinumSubtitle,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    LuxuryStatusPill(
-                        text = if (isMasterPasswordEnabled) "PROTECTED" else "NOT SET",
-                        accentColor = if (isMasterPasswordEnabled) LuxuryTacticalEmerald else LuxuryChampagneGold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = onManagePasswordClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .jellyElastic(baseCornerRadius = 12.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1A2438),
-                            contentColor = LuxuryChampagneGold
-                        ),
-                        border = BorderStroke(1.dp, LuxuryChampagneGold.copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (!isMasterPasswordEnabled) "Set Password" else "Password / Lock",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
-
-                    Button(
-                        onClick = onLockPhoneAppsClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .jellyElastic(baseCornerRadius = 12.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = LuxurySapphireCyan.copy(alpha = 0.16f),
-                            contentColor = LuxurySapphireCyan
-                        ),
-                        border = BorderStroke(1.dp, LuxurySapphireCyan.copy(alpha = 0.65f)),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Layers,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Lock Apps ($lockedAppsCount)",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-
-        // Card B — Encrypted Multi-Phone Live Screen Share (Sapphire Cyan & Emerald accent)
-        val isSenderActive by ScreenShareSessionManager.isSenderActive.collectAsState()
-        val senderRoomCode by ScreenShareSessionManager.senderRoomCode.collectAsState()
-        val viewerSessions by ScreenShareSessionManager.viewerSessions.collectAsState()
-
-        val isLiveActive = isSenderActive || viewerSessions.isNotEmpty()
-        val shareBadgeText = when {
-            isSenderActive -> "🟢 Sharing Live (#$senderRoomCode)"
-            viewerSessions.isNotEmpty() -> "🟢 Watching ${viewerSessions.size} Phones"
-            else -> "🛡️ AES-256-GCM Ready"
-        }
-
-        LuxuryGlassCard(
-            cornerRadius = 22.dp,
-            borderBrush = Brush.linearGradient(
-                listOf(
-                    if (isLiveActive) LuxuryTacticalEmerald else LuxurySapphireCyan,
-                    Color(0xFF182232)
-                )
-            ),
-            modifier = Modifier
-                .jellyElastic(baseCornerRadius = 22.dp)
-                .clickable(onClick = onLiveScreenShareClick)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background((if (isLiveActive) LuxuryTacticalEmerald else LuxurySapphireCyan).copy(alpha = 0.15f))
-                            .border(
-                                1.dp,
-                                (if (isLiveActive) LuxuryTacticalEmerald else LuxurySapphireCyan).copy(alpha = 0.7f),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = null,
-                            tint = if (isLiveActive) LuxuryTacticalEmerald else LuxurySapphireCyan,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column {
-                        Text(
-                            text = "📡 Live Screen & Audio Share",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Multi-phone encrypted video & audio relay",
-                            color = LuxuryPlatinumSubtitle,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                LuxuryStatusPill(
-                    text = shareBadgeText,
-                    accentColor = if (isLiveActive) LuxuryTacticalEmerald else LuxurySapphireCyan
-                )
-            }
-        }
-    }
-}
-
-/**
- * Interactive Dual-Mode Screen Share Dialog (Sender & Viewer).
- */
-@Composable
-fun ScreenShareDialog(
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val viewerSessions by ScreenShareSessionManager.viewerSessions.collectAsState()
-    var selectedTab by rememberSaveable { mutableIntStateOf(if (ScreenShareSessionManager.viewerSessions.value.isNotEmpty()) 1 else 0) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.92f)
-                .border(
-                    width = 1.dp,
-                    brush = Brush.linearGradient(listOf(Color(0xFF38BDF8), Color(0xFF141B29))),
-                    shape = RoundedCornerShape(24.dp)
-                ),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F1A))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
-                // Header Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x2638BDF8))
-                                .border(1.dp, Color(0xFF38BDF8), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = Color(0xFF38BDF8),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "LIVE SCREEN SHARE",
-                                color = Color(0xFF38BDF8),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 15.sp,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = "🔒 End-to-End Encrypted (AES-256-GCM) • Persistent Stream",
-                                color = Color(0xFF00E676),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color(0xFF8A99AD)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Tabs: Share (Sender) vs Watch (Viewer)
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color(0xFF141C2A),
-                    contentColor = Color(0xFF38BDF8),
-                    indicator = { tabPositions ->
-                        TabRowDefaults.Indicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = Color(0xFF38BDF8),
-                            height = 3.dp
-                        )
-                    }
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            Text(
-                                text = "📤 Share Screen",
-                                fontWeight = if (selectedTab == 0) FontWeight.Black else FontWeight.Normal,
-                                color = if (selectedTab == 0) Color(0xFF38BDF8) else Color(0xFF8A99AD),
-                                fontSize = 13.sp
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Text(
-                                text = if (viewerSessions.isNotEmpty()) "📺 Watch Screens (${viewerSessions.size})" else "📺 Watch Screen",
-                                fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Normal,
-                                color = if (selectedTab == 1) Color(0xFF38BDF8) else Color(0xFF8A99AD),
-                                fontSize = 13.sp
-                            )
-                        }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Tab Content
-                if (selectedTab == 0) {
-                    SenderScreenTab(context = context)
-                } else {
-                    ViewerScreenTab()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EncryptionStatusBadge() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, Color(0xFF00E676).copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF081C15))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF00E676))
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = "🛡️ AES-256-GCM Encrypted (Video + Audio Protected)",
-                    color = Color(0xFF00E676),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.3.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "End-to-End Encrypted: Koi teesra phone ya server aapki screen ya aawaz nahi sun sakta.",
-                    color = Color(0xFF86EFAC),
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SenderScreenTab(context: Context) {
-    val isSharing by ScreenShareSessionManager.isSenderActive.collectAsState()
-    val activeRoomCode by ScreenShareSessionManager.senderRoomCode.collectAsState()
-    val framesSent by ScreenShareSessionManager.senderFramesSent.collectAsState()
-    val statusText by ScreenShareSessionManager.senderStatusText.collectAsState()
-    val selectedAudioMode by ScreenShareSessionManager.senderAudioMode.collectAsState()
-
-    val mediaProjectionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val serviceIntent = Intent(context, ScreenShareService::class.java).apply {
-                action = ScreenShareService.ACTION_START_SHARE
-                putExtra(ScreenShareService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(ScreenShareService.EXTRA_RESULT_DATA, result.data)
-                putExtra(ScreenShareService.EXTRA_ROOM_CODE, activeRoomCode)
-                putExtra(ScreenShareService.EXTRA_AUDIO_MODE, selectedAudioMode)
-            }
-            ContextCompat.startForegroundService(context, serviceIntent)
-        }
-    }
-
-    val recordAudioLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { _ ->
-        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
-        if (mpManager != null) {
-            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        EncryptionStatusBadge()
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Device Name Badge
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFF26334D), RoundedCornerShape(14.dp)),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1522))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x2638BDF8))
-                        .border(1.dp, Color(0xFF38BDF8), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tv,
-                        contentDescription = null,
-                        tint = Color(0xFF38BDF8),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "YOUR PHONE'S BROADCAST NAME",
-                        color = Color(0xFF38BDF8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 10.sp,
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        text = "📱 ${ScreenShareService.getLocalPhoneName()}",
-                        color = Color(0xFFFFFFFF),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        if (!isSharing) {
-            // Room Code Display Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF26334D), RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1522))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "YOUR 6-DIGIT ROOM CODE",
-                        color = Color(0xFF38BDF8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = activeRoomCode,
-                            color = Color(0xFFFFFFFF),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 34.sp,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 4.sp
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        IconButton(
-                            onClick = { ScreenShareSessionManager.regenerateSenderRoomCode() },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Regenerate Room Code",
-                                tint = Color(0xFF38BDF8),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Share this 6-digit code with the viewer. They can add multiple phones to watch simultaneously!",
-                        color = Color(0xFF8A99AD),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Audio Mode Selector (4 options in a clean 2x2 grid)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E2838), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111824))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "🎙️ AUDIO STREAMING MODE",
-                        color = Color(0xFF38BDF8),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Select what sound is broadcasted (switchable live anytime):",
-                        color = Color(0xFF8A99AD),
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val row1Modes = listOf(
-                        ScreenShareService.AUDIO_MODE_INTERNAL to "🎵 Internal Sound",
-                        ScreenShareService.AUDIO_MODE_MIC to "🎙️ Mic Voice"
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        row1Modes.forEach { (mode, label) ->
-                            val isSelected = selectedAudioMode == mode
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) Color(0xFF38BDF8) else Color(0xFF182232))
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .jellyElastic(baseCornerRadius = 10.dp)
-                                    .clickable { ScreenShareSessionManager.setSenderAudioMode(mode) }
-                                    .padding(vertical = 10.dp, horizontal = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) Color(0xFF06080E) else Color(0xFFBAC7D5),
-                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val row2Modes = listOf(
-                        ScreenShareService.AUDIO_MODE_BOTH to "🔊 Both (Mix)",
-                        ScreenShareService.AUDIO_MODE_NONE to "🔇 None (Silent)"
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        row2Modes.forEach { (mode, label) ->
-                            val isSelected = selectedAudioMode == mode
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) Color(0xFF38BDF8) else Color(0xFF182232))
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .jellyElastic(baseCornerRadius = 10.dp)
-                                    .clickable { ScreenShareSessionManager.setSenderAudioMode(mode) }
-                                    .padding(vertical = 10.dp, horizontal = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) Color(0xFF06080E) else Color(0xFFBAC7D5),
-                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Instructions
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E2838), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111824))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "🔒 PRIVATE & ENCRYPTED STREAM",
-                        color = Color(0xFF38BDF8),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "1. Click 'Start Screen Sharing' below and approve Android's screen capture prompt.\n" +
-                               "2. Video and device name are encrypted with AES-256-GCM using your Room Code key.\n" +
-                               "3. Audio mode can be switched dynamically between Internal, Mic, Both, or Silent anytime.\n" +
-                               "4. Broadcast runs 24/7 persistently in the background until you explicitly tap 'Stop Screen Sharing'.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    val needsMic = selectedAudioMode == ScreenShareService.AUDIO_MODE_MIC || selectedAudioMode == ScreenShareService.AUDIO_MODE_BOTH
-                    val hasMicPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (needsMic && !hasMicPermission) {
-                        recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    } else {
-                        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
-                        if (mpManager != null) {
-                            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .jellyElastic(baseCornerRadius = 14.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF38BDF8),
-                    contentColor = Color(0xFF06080E)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "▶️ Start Screen Sharing",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 14.sp
-                )
-            }
-        } else {
-            // Live Broadcasting Active State
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF00E676), RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1B16))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x3300E676))
-                            .border(1.dp, Color(0xFF00E676), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "🟢 LIVE BROADCAST ACTIVE",
-                            color = Color(0xFF00E676),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "ROOM #$activeRoomCode",
-                        color = Color(0xFFFFFFFF),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 28.sp,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 3.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Frames Sent: $framesSent  •  Status: $statusText",
-                        color = Color(0xFF8A99AD),
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Dynamic Live Audio Mode Switcher
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E2838), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111824))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "🎙️ LIVE AUDIO CONTROL: ",
-                            color = Color(0xFF38BDF8),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = selectedAudioMode,
-                            color = Color(0xFF00E676),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val allModes = listOf(
-                        ScreenShareService.AUDIO_MODE_INTERNAL to "🎵 Internal",
-                        ScreenShareService.AUDIO_MODE_MIC to "🎙️ Mic",
-                        ScreenShareService.AUDIO_MODE_BOTH to "🔊 Both",
-                        ScreenShareService.AUDIO_MODE_NONE to "🔇 Silent"
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        allModes.forEach { (mode, label) ->
-                            val isSelected = selectedAudioMode == mode
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Color(0xFF38BDF8) else Color(0xFF182232))
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .jellyElastic(baseCornerRadius = 8.dp)
-                                    .clickable { ScreenShareSessionManager.setSenderAudioMode(mode) }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) Color(0xFF06080E) else Color(0xFFBAC7D5),
-                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                    fontSize = 10.sp,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E2838), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111824))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "📱 BACKGROUND STREAMING ACTIVE",
-                        color = Color(0xFF00E676),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Broadcasting live as '${ScreenShareService.getLocalPhoneName()}'. You can minimize this app or lock the screen without interrupting the broadcast.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    ScreenShareService.stopSharing(context)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .jellyElastic(baseCornerRadius = 14.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF2E54),
-                    contentColor = Color(0xFFFFFFFF)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Stop,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "⏹️ Stop Screen Sharing",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 14.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ViewerScreenTab() {
-    val context = LocalContext.current
-
-    val viewerSessions by ScreenShareSessionManager.viewerSessions.collectAsState()
-    val selectedTabRoomCode by ScreenShareSessionManager.selectedTabRoomCode.collectAsState()
-
-    var inputRoomCode by rememberSaveable { mutableStateOf("") }
-    val isInputValid = inputRoomCode.length == 6
-
-    val activeSession = viewerSessions.find { it.roomCode == selectedTabRoomCode } ?: viewerSessions.firstOrNull()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        EncryptionStatusBadge()
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Top Connect Bar: Always visible so user can add multiple phones
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFF26334D), RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1522))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp)
-            ) {
-                Text(
-                    text = "CONNECT TO SENDER PHONE",
-                    color = Color(0xFF38BDF8),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Enter a 6-digit Room Code to watch live. You can connect to multiple phones simultaneously:",
-                    color = Color(0xFF8A99AD),
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = inputRoomCode,
-                        onValueChange = { newValue ->
-                            if (newValue.length <= 6 && newValue.all { it.isDigit() }) {
-                                inputRoomCode = newValue
-                            }
-                        },
-                        placeholder = {
-                            Text(
-                                text = "e.g. 482910",
-                                color = Color(0xFF5E6D82),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 14.sp
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = TextStyle(
-                            color = Color(0xFF38BDF8),
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 16.sp,
-                            textAlign = TextAlign.Center
-                        ),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF26334D),
-                            focusedContainerColor = Color(0xFF060910),
-                            unfocusedContainerColor = Color(0xFF060910)
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Button(
-                        onClick = {
-                            ScreenShareSessionManager.addOrSelectViewerPhone(context, inputRoomCode)
-                            inputRoomCode = ""
-                        },
-                        enabled = isInputValid,
-                        modifier = Modifier
-                            .height(52.dp)
-                            .jellyElastic(baseCornerRadius = 12.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF38BDF8),
-                            disabledContainerColor = Color(0xFF1E2838),
-                            contentColor = Color(0xFF06080E),
-                            disabledContentColor = Color(0xFF5E6D82)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tv,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "➕ Add Phone",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Multi-Phone Horizontal Device Tabs Bar
-        if (viewerSessions.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                viewerSessions.forEach { session ->
-                    val isSelected = session.roomCode == activeSession?.roomCode
-                    Card(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) Color(0xFF38BDF8) else Color(0xFF26334D),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable { ScreenShareSessionManager.selectViewerTab(session.roomCode) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) Color(0xFF162235) else Color(0xFF0F1522)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val statusDot = if (session.isStreamAvailable) "🟢" else "🔴"
-                            val dotColor = if (session.isStreamAvailable) Color(0xFF00E676) else Color(0xFFFF2E54)
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "$statusDot 📱 ${session.phoneName}",
-                                color = if (isSelected) Color(0xFFFFFFFF) else Color(0xFF8A99AD),
-                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                fontSize = 12.sp,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0x33FF2E54))
-                                    .clickable {
-                                        ScreenShareSessionManager.disconnectSinglePhoneTab(session.roomCode)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Disconnect tab",
-                                    tint = Color(0xFFFF2E54),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-        }
-
-        // Active Session View or Empty State
-        if (activeSession != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF38BDF8), RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF070A10))
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(if (activeSession.isStreamAvailable) Color(0xFF00E676) else Color(0xFFFF2E54))
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "${if (activeSession.isStreamAvailable) "🟢" else "🔴"} 📱 ${activeSession.phoneName}",
-                                    color = Color(0xFFFFFFFF),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 1
-                                )
-                            }
-                            Text(
-                                text = if (activeSession.isStreamAvailable) "AES-256-GCM Encrypted • ${activeSession.status}" else "🔴 Stream Offline • Waiting for Internet / Reconnect...",
-                                color = if (activeSession.isStreamAvailable) Color(0xFF00E676) else Color(0xFFFF2E54),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = { ScreenShareSessionManager.toggleMuteForPhone(activeSession.roomCode) },
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .jellyElastic(baseCornerRadius = 10.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, if (activeSession.isAudioMuted) Color(0xFFFF2E54) else Color(0xFF38BDF8)),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (activeSession.isAudioMuted) Color(0xFFFF2E54) else Color(0xFF38BDF8)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text(
-                                    text = if (activeSession.isAudioMuted) "🔇 Audio: MUTED" else "🔊 Audio: ON",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            OutlinedButton(
-                                onClick = { ScreenShareSessionManager.disconnectSinglePhoneTab(activeSession.roomCode) },
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .jellyElastic(baseCornerRadius = 10.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Color(0xFFFF2E54)),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = Color(0xFFFF2E54)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text(
-                                    text = "❌ Disconnect",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Remote Video Canvas
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(440.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF030509))
-                            .border(1.dp, Color(0xFF1B2433), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (activeSession.isStreamAvailable && activeSession.latestFrame != null) {
-                            Image(
-                                bitmap = activeSession.latestFrame.asImageBitmap(),
-                                contentDescription = "Remote Screen Stream for ${activeSession.phoneName}",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else if (!activeSession.isStreamAvailable) {
-                            // Obsidian Dark-Luxury Offline Card (#141B29 card with a glowing Crimson/Amber border #FF2E54)
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                shape = RoundedCornerShape(18.dp),
-                                border = BorderStroke(1.5.dp, Color(0xFFFF2E54)),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141B29))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp, vertical = 28.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = "📡❌",
-                                        fontSize = 42.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "Screen is not available because internet/data is turn off",
-                                        color = Color(0xFFFFFFFF),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 24.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text(
-                                        text = "Jaise hi internet/data dobara connect hoga, live screen khud-ba-khud wapas visible ho jayegi...",
-                                        color = Color(0xFF94A3B8),
-                                        fontSize = 13.sp,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 18.sp
-                                    )
-                                }
-                            }
-                        } else {
-                            // Initial State: Waiting for first frames while stream connects
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp),
-                                    color = Color(0xFF38BDF8),
-                                    strokeWidth = 3.dp
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Text(
-                                    text = "📡 Waiting for live frames...",
-                                    color = Color(0xFFFFFFFF),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Make sure ${activeSession.phoneName} on Room #${activeSession.roomCode} is sharing.",
-                                    color = Color(0xFF8A99AD),
-                                    fontSize = 11.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Empty State: No phones connected
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E2838), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111824))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tv,
-                        contentDescription = null,
-                        tint = Color(0xFF38BDF8),
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "NO PHONES CONNECTED YET",
-                        color = Color(0xFFFFFFFF),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Enter a 6-digit Room Code in the top bar and tap '➕ Add Phone' to watch. You can connect to multiple phones at the same time and switch between them using tabs!",
-                        color = Color(0xFF8A99AD),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-        }
-    }
-}
-

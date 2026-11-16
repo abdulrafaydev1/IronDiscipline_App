@@ -2,6 +2,7 @@ package com.irondiscipline.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
@@ -54,12 +55,17 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.irondiscipline.app.alarm.AlarmRepository
 import com.irondiscipline.app.timer.ProTimerManager
 import com.irondiscipline.app.timer.ProTimerState
+import com.irondiscipline.app.ui.components.CommandSidebarDrawerOverlay
+import com.irondiscipline.app.ui.components.SidebarScreenRoute
 import com.irondiscipline.app.ui.components.jellyElastic
 import com.irondiscipline.app.ui.screens.AlarmScreen
 import com.irondiscipline.app.ui.screens.AppPasswordGateScreen
 import com.irondiscipline.app.ui.screens.DashboardScreen
+import com.irondiscipline.app.ui.screens.LiveScreenShareFullScreen
 import com.irondiscipline.app.ui.screens.SettingsScreen
+import com.irondiscipline.app.ui.screens.StrictProtocolFullScreen
 import com.irondiscipline.app.ui.screens.TimerScreen
+import com.irondiscipline.app.ui.screens.UniversalAppLockerFullScreen
 import com.irondiscipline.app.ui.theme.IronDisciplineTheme
 import com.irondiscipline.app.ui.theme.LuxuryBgTop
 import com.irondiscipline.app.ui.theme.LuxuryChampagneGold
@@ -158,6 +164,8 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
 
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTab by rememberSaveable { mutableStateOf(MainNavTab.DASHBOARD) }
+    var isSidebarOpen by rememberSaveable { mutableStateOf(false) }
+    var activeSidebarScreen by rememberSaveable { mutableStateOf(SidebarScreenRoute.NONE) }
     val proTimerState by ProTimerManager.timerState.collectAsState()
     val context = LocalContext.current
 
@@ -206,116 +214,159 @@ fun IronDisciplineMainApp(viewModel: MainViewModel) {
         return
     }
 
-    Scaffold(
-        containerColor = LuxuryBgTop,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        bottomBar = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(LuxuryNavSpecularBorder)
-                )
-                NavigationBar(
-                    containerColor = LuxuryNavSurface
-                ) {
-                    MainNavTab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            modifier = Modifier.jellyElastic(
-                                enabled = true,
-                                baseCornerRadius = 24.dp,
-                                maxTranslationDp = 16.dp,
-                                maxStretchScale = 0.25f
-                            ),
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
-                            icon = {
-                                if (tab == MainNavTab.TIMER &&
-                                    (proTimerState == ProTimerState.RUNNING || proTimerState == ProTimerState.FINISHED_RINGING)
-                                ) {
-                                    Box {
-                                        Icon(
-                                            imageVector = tab.icon,
-                                            contentDescription = tab.label
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (proTimerState == ProTimerState.FINISHED_RINGING) {
-                                                        LuxuryCrimsonAlert
-                                                    } else {
-                                                        LuxuryTacticalEmerald
-                                                    }
+    BackHandler(enabled = isSidebarOpen) {
+        isSidebarOpen = false
+    }
+    BackHandler(enabled = !isSidebarOpen && activeSidebarScreen != SidebarScreenRoute.NONE) {
+        activeSidebarScreen = SidebarScreenRoute.NONE
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = LuxuryBgTop,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            bottomBar = {
+                if (activeSidebarScreen == SidebarScreenRoute.NONE) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(LuxuryNavSpecularBorder)
+                        )
+                        NavigationBar(
+                            containerColor = LuxuryNavSurface
+                        ) {
+                            MainNavTab.entries.forEach { tab ->
+                                NavigationBarItem(
+                                    modifier = Modifier.jellyElastic(
+                                        enabled = true,
+                                        baseCornerRadius = 24.dp,
+                                        maxTranslationDp = 16.dp,
+                                        maxStretchScale = 0.25f
+                                    ),
+                                    selected = selectedTab == tab,
+                                    onClick = { selectedTab = tab },
+                                    icon = {
+                                        if (tab == MainNavTab.TIMER &&
+                                            (proTimerState == ProTimerState.RUNNING || proTimerState == ProTimerState.FINISHED_RINGING)
+                                        ) {
+                                            Box {
+                                                Icon(
+                                                    imageVector = tab.icon,
+                                                    contentDescription = tab.label
                                                 )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopEnd)
+                                                        .size(8.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (proTimerState == ProTimerState.FINISHED_RINGING) {
+                                                                LuxuryCrimsonAlert
+                                                            } else {
+                                                                LuxuryTacticalEmerald
+                                                            }
+                                                        )
+                                                )
+                                            }
+                                        } else {
+                                            Icon(
+                                                imageVector = tab.icon,
+                                                contentDescription = tab.label
+                                            )
+                                        }
+                                    },
+                                    label = {
+                                        Text(
+                                            text = tab.label,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            maxLines = 1
                                         )
-                                    }
-                                } else {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.label
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = tab.accentColor,
+                                        selectedTextColor = tab.accentColor,
+                                        unselectedIconColor = Color(0xFF64748B),
+                                        unselectedTextColor = Color(0xFF64748B),
+                                        indicatorColor = LuxurySapphireCyan.copy(alpha = 0.14f)
                                     )
-                                }
-                            },
-                            label = {
-                                Text(
-                                    text = tab.label,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
                                 )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = tab.accentColor,
-                                selectedTextColor = tab.accentColor,
-                                unselectedIconColor = Color(0xFF64748B),
-                                unselectedTextColor = Color(0xFF64748B),
-                                indicatorColor = LuxurySapphireCyan.copy(alpha = 0.14f)
-                            )
+                            }
+                        }
+                    }
+                }
+            }
+        ) { innerPadding ->
+            val alarmRepository = remember { AlarmRepository.getInstance(context) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .statusBarsPadding()
+            ) {
+                if (activeSidebarScreen != SidebarScreenRoute.NONE) {
+                    when (activeSidebarScreen) {
+                        SidebarScreenRoute.UNIVERSAL_APP_LOCKER -> UniversalAppLockerFullScreen(
+                            isMasterPasswordEnabled = isMasterPasswordEnabled,
+                            lockedPackages = customPasswordLockedPackages,
+                            onSetMasterPassword = viewModel::setMasterPassword,
+                            onVerifyMasterPassword = viewModel::verifyMasterPassword,
+                            onLockSessionNow = viewModel::lockSession,
+                            onToggleCustomPackageLock = viewModel::toggleCustomPackageLock,
+                            onLoadInstalledApps = viewModel::loadInstalledLauncherApps,
+                            onBack = { activeSidebarScreen = SidebarScreenRoute.NONE }
+                        )
+                        SidebarScreenRoute.LIVE_SCREEN_SHARE -> LiveScreenShareFullScreen(
+                            onBack = { activeSidebarScreen = SidebarScreenRoute.NONE }
+                        )
+                        SidebarScreenRoute.STRICT_PROTOCOL_CONTROLS -> StrictProtocolFullScreen(
+                            realtimeQuotaState = realtimeQuotaState,
+                            onActivateOneMinuteTestMode = viewModel::activateOneMinuteTestMode,
+                            onSwitchBackToNormalThirtyMinMode = viewModel::switchBackToNormalThirtyMinModeAndReset,
+                            onVerifyPin = viewModel::verifyUninstallPin,
+                            onConfirmUninstall = viewModel::executeAuthorizedUninstall,
+                            onBack = { activeSidebarScreen = SidebarScreenRoute.NONE }
+                        )
+                        SidebarScreenRoute.NONE -> Unit
+                    }
+                } else {
+                    when (selectedTab) {
+                        MainNavTab.DASHBOARD -> DashboardScreen(
+                            realtimeQuotaState = realtimeQuotaState,
+                            permissionState = permissionState,
+                            onOpenSidebar = { isSidebarOpen = true },
+                            onRefreshPermissions = viewModel::refreshPermissionsAndApps
+                        )
+                        MainNavTab.ALARM -> AlarmScreen(
+                            alarmRepository = alarmRepository
+                        )
+                        MainNavTab.TIMER -> TimerScreen()
+                        MainNavTab.SETTINGS -> SettingsScreen(
+                            permissionState = permissionState,
+                            onRefreshPermissions = viewModel::refreshPermissionsAndApps,
+                            onVerifyPin = viewModel::verifyUninstallPin,
+                            onConfirmUninstall = viewModel::executeAuthorizedUninstall,
+                            onChangePin = viewModel::updateUninstallPin
                         )
                     }
                 }
             }
         }
-    ) { innerPadding ->
-        val alarmRepository = remember { AlarmRepository.getInstance(context) }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .statusBarsPadding()
-        ) {
-            when (selectedTab) {
-                MainNavTab.DASHBOARD -> DashboardScreen(
-                    realtimeQuotaState = realtimeQuotaState,
-                    permissionState = permissionState,
-                    isMasterPasswordEnabled = isMasterPasswordEnabled,
-                    lockedPackages = customPasswordLockedPackages,
-                    onSetMasterPassword = viewModel::setMasterPassword,
-                    onToggleCustomPackageLock = viewModel::toggleCustomPackageLock,
-                    onLoadInstalledApps = viewModel::loadInstalledLauncherApps,
-                    onActivateOneMinuteTestMode = viewModel::activateOneMinuteTestMode,
-                    onSwitchBackToNormalThirtyMinMode = viewModel::switchBackToNormalThirtyMinModeAndReset,
-                    onRefreshPermissions = viewModel::refreshPermissionsAndApps,
-                    onVerifyPin = viewModel::verifyUninstallPin,
-                    onConfirmUninstall = viewModel::executeAuthorizedUninstall
-                )
-                MainNavTab.ALARM -> AlarmScreen(
-                    alarmRepository = alarmRepository
-                )
-                MainNavTab.TIMER -> TimerScreen()
-                MainNavTab.SETTINGS -> SettingsScreen(
-                    permissionState = permissionState,
-                    onRefreshPermissions = viewModel::refreshPermissionsAndApps,
-                    onVerifyPin = viewModel::verifyUninstallPin,
-                    onConfirmUninstall = viewModel::executeAuthorizedUninstall,
-                    onChangePin = viewModel::updateUninstallPin
-                )
+        CommandSidebarDrawerOverlay(
+            visible = isSidebarOpen,
+            isMasterPasswordEnabled = isMasterPasswordEnabled,
+            lockedAppsCount = customPasswordLockedPackages.size,
+            isTestMode = realtimeQuotaState.isTestModeActive,
+            isAnyAppLocked = realtimeQuotaState.anyAppLocked,
+            onClose = { isSidebarOpen = false },
+            onSelectRoute = { route ->
+                isSidebarOpen = false
+                activeSidebarScreen = route
             }
-        }
+        )
     }
 }

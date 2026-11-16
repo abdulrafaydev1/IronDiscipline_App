@@ -527,7 +527,7 @@ fun LockPhoneAppsDialog(
 }
 
 @Composable
-private fun AppLockerRowItem(
+fun AppLockerRowItem(
     app: AppLockerItem,
     isLocked: Boolean,
     onToggleLock: (Boolean) -> Unit

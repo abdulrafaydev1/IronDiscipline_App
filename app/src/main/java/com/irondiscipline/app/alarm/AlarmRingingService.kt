@@ -123,10 +123,7 @@ class AlarmRingingService : Service() {
         var currentRingingAlarmLabel: String? = null
 
         @Volatile
-        var isCurrentRingFollowup: Boolean = false
-
-        @Volatile
-        var currentFollowUpCode: String? = null
+        var currentRingingQuestionCount: Int = 5
 
         fun stopAndCleanup(context: Context, alarmId: String? = null) {
             val targetAlarmId = alarmId ?: currentRingingAlarmId
@@ -135,8 +132,7 @@ class AlarmRingingService : Service() {
             isCurrentlyRinging = false
             currentRingingAlarmId = null
             currentRingingAlarmLabel = null
-            isCurrentRingFollowup = false
-            currentFollowUpCode = null
+            currentRingingQuestionCount = 5
 
             serviceInstance?.unregisterReceiversCleanly()
 
@@ -180,9 +176,9 @@ class AlarmRingingService : Service() {
                         Intent.FLAG_ACTIVITY_NO_ANIMATION
                 )
                 putExtra(AlarmScheduler.EXTRA_ALARM_ID, currentRingingAlarmId)
+                putExtra("EXTRA_ALARM_ID", currentRingingAlarmId)
                 putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, currentRingingAlarmLabel)
-                putExtra("EXTRA_IS_FOLLOWUP_ALARM", isCurrentRingFollowup)
-                putExtra("EXTRA_FOLLOWUP_CODE", currentFollowUpCode)
+                putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, currentRingingQuestionCount)
             }
             try {
                 context.startActivity(intent)
@@ -245,15 +241,40 @@ class AlarmRingingService : Service() {
         AlarmWakeLockManager.acquireRingingWakeLocks(applicationContext)
 
         val alarmId = intent?.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID)
+            ?: intent?.getStringExtra("EXTRA_ALARM_ID")
         val alarmLabel = intent?.getStringExtra(AlarmScheduler.EXTRA_ALARM_LABEL)
+            ?: intent?.getStringExtra("EXTRA_ALARM_LABEL")
         val repository = AlarmRepository.getInstance(applicationContext)
         val alarm = if (alarmId != null) repository.getAlarmById(alarmId) else null
+
+        val prefs = getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
+        val intentQuestionCount = if (intent?.hasExtra(AlarmScheduler.EXTRA_QUESTION_COUNT) == true) {
+            intent.getIntExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, -1)
+        } else {
+            -1
+        }
+        val questionCount = (when {
+            intentQuestionCount in 1..100 -> intentQuestionCount
+            alarm != null -> alarm.questionCount
+            !alarmId.isNullOrBlank() -> prefs.getInt(
+                "alarm_question_count_$alarmId",
+                prefs.getInt("active_ringing_question_count", 5)
+            )
+            else -> prefs.getInt("active_ringing_question_count", 5)
+        }).coerceIn(1, 100)
+
+        // Update active ringing state before building notification so fullScreenIntent gets questionCount
+        isCurrentlyRinging = true
+        currentRingingAlarmId = alarmId
+        currentRingingAlarmLabel = alarm?.label ?: alarmLabel
+        currentlyRingingAlarmId = alarmId
+        currentRingingQuestionCount = questionCount
 
         // Step A: Acquire WakeLocks immediately
         AlarmWakeLockManager.acquireWakeLocks(this)
 
         // Step B: Promote to foreground (< 50ms)
-        val notification = buildRingingNotification(alarmId, alarm)
+        val notification = buildRingingNotification(alarmId, alarm, questionCount)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 ServiceCompat.startForeground(
@@ -280,26 +301,18 @@ class AlarmRingingService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        // Update active ringing state and metadata
-        val isFollowUp = intent?.getBooleanExtra("EXTRA_IS_FOLLOWUP_ALARM", false)
-            ?: (alarmId == "FOLLOWUP_5MIN_ALARM")
-        val followUpCode = intent?.getStringExtra("EXTRA_FOLLOWUP_CODE")
-            ?: getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE).getString("followup_alarm_code", null)
+        // Synchronously record ringing state & question count to persistent preferences
+        prefs.edit()
+            .putBoolean("is_alarm_currently_ringing", true)
+            .apply {
+                if (!alarmId.isNullOrBlank()) {
+                    putInt("alarm_question_count_$alarmId", questionCount)
+                }
+            }
+            .putInt("active_ringing_question_count", questionCount)
+            .commit()
 
-        isCurrentlyRinging = true
-        currentRingingAlarmId = alarmId
-        currentRingingAlarmLabel = alarm?.label ?: alarmLabel
-        currentlyRingingAlarmId = alarmId
-        isCurrentRingFollowup = isFollowUp
-        currentFollowUpCode = followUpCode
-
-        // Synchronously record ringing state to persistent preferences
-        val prefs = getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("is_alarm_currently_ringing", true).commit()
-
-        if (alarmId != null) {
-            ActiveAlarmSessionState.initSession(alarmId)
-        }
+        ActiveAlarmSessionState.initSession(alarmId, questionCount)
 
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -424,15 +437,15 @@ class AlarmRingingService : Service() {
         }
     }
 
-    private fun buildRingingNotification(alarmId: String?, alarm: AlarmItem?): Notification {
+    private fun buildRingingNotification(alarmId: String?, alarm: AlarmItem?, questionCount: Int): Notification {
         val title = if (alarm != null) "🚨 ALARM: ${alarm.formattedTime}" else "🚨 DISCIPLINE ALARM RINGING"
         val label = alarm?.label ?: "Wake up and conquer the day."
 
         val fullScreenIntent = Intent(this, AlarmRingingActivity::class.java).apply {
             data = Uri.parse("irondiscipline://alarm_ring/${alarmId ?: "active"}")
             putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId)
-            putExtra("EXTRA_IS_FOLLOWUP_ALARM", isCurrentRingFollowup)
-            putExtra("EXTRA_FOLLOWUP_CODE", currentFollowUpCode)
+            putExtra("EXTRA_ALARM_ID", alarmId)
+            putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, questionCount)
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -469,8 +482,7 @@ class AlarmRingingService : Service() {
         currentRingingAlarmId = null
         currentRingingAlarmLabel = null
         currentlyRingingAlarmId = null
-        isCurrentRingFollowup = false
-        currentFollowUpCode = null
+        currentRingingQuestionCount = 5
 
         unregisterReceiversCleanly()
         if (serviceInstance === this) {

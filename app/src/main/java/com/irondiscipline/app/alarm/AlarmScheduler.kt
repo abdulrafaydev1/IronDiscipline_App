@@ -28,6 +28,7 @@ class AlarmScheduler(private val context: Context) {
         const val EXTRA_ALARM_LABEL = "extra_alarm_label"
         const val EXTRA_SOUND_INDEX = "extra_sound_index"
         const val EXTRA_DELETE_AFTER_RINGING = "extra_delete_after_ringing"
+        const val EXTRA_QUESTION_COUNT = "EXTRA_QUESTION_COUNT"
 
         @Volatile
         private var instance: AlarmScheduler? = null
@@ -55,160 +56,7 @@ class AlarmScheduler(private val context: Context) {
         }
 
         /**
-         * Schedules a 100% Screen-Off Reliable 5-Minute Follow-Up Alarm after the initial alarm's math challenge is solved.
-         * Dual-trigger: 5-second Pre-Wake Direct Activity AlarmClock + Exact Direct Activity AlarmClock + Backup Broadcast.
-         */
-        fun scheduleFiveMinuteFollowUpAlarm(
-            context: Context,
-            fiveDigitCode: String,
-            soundIndex: Int,
-            label: String
-        ) {
-            val triggerAtMillis = System.currentTimeMillis() + 5 * 60 * 1000L
-            val prefs = context.getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putBoolean("followup_alarm_pending", true)
-                .putLong("followup_alarm_trigger_ms", triggerAtMillis)
-                .putString("followup_alarm_code", fiveDigitCode)
-                .putInt("followup_alarm_sound_index", soundIndex)
-                .putString("followup_alarm_label", label)
-                .commit()
-
-            // 1. Keep CPU awake while screen is OFF during the 5-minute wait!
-            AlarmWakeLockManager.maintainPendingAlarmCpuLock(context, hasEnabledAlarms = true)
-
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-
-            // Trigger 1 — Pre-Wake Screen Opener (5 Seconds Before Alarm Time: triggerAtMillis - 5000L)
-            val preWakeEpochMs = triggerAtMillis - 5000L
-            val preWakeIntent = Intent(context, AlarmRingingActivity::class.java).apply {
-                action = Intent.ACTION_MAIN
-                data = Uri.parse("irondiscipline://alarm_ring/followup_5min/prewake")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    identifier = "followup_prewake"
-                }
-                putExtra(EXTRA_ALARM_ID, "FOLLOWUP_5MIN_ALARM")
-                putExtra("EXTRA_ALARM_ID", "FOLLOWUP_5MIN_ALARM")
-                putExtra(EXTRA_ALARM_LABEL, "5-Min Wake-Up Verification")
-                putExtra("EXTRA_ALARM_LABEL", "5-Min Wake-Up Verification")
-                putExtra(EXTRA_SOUND_INDEX, soundIndex)
-                putExtra("EXTRA_SOUND_INDEX", soundIndex)
-                putExtra("EXTRA_IS_FOLLOWUP_ALARM", true)
-                putExtra("EXTRA_FOLLOWUP_CODE", fiveDigitCode)
-                putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                putExtra("EXTRA_PRE_WAKE_COUNTDOWN_MS", 5000L)
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-            }
-            val preWakePendingIntent = PendingIntent.getActivity(
-                context,
-                999995,
-                preWakeIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            try {
-                alarmManager.setAlarmClock(
-                    AlarmManager.AlarmClockInfo(preWakeEpochMs, preWakePendingIntent),
-                    preWakePendingIntent
-                )
-                Log.i(TAG, "[IronAlarmTrace:FOLLOWUP_PREWAKE] 5-minute follow-up pre-wake scheduled for epoch=$preWakeEpochMs")
-            } catch (_: Exception) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, preWakeEpochMs, preWakePendingIntent)
-                    } else {
-                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, preWakeEpochMs, preWakePendingIntent)
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // Trigger 2 — Exact Alarm Time Direct Activity AlarmClock (at triggerAtMillis)
-            val directActivityIntent = Intent(context, AlarmRingingActivity::class.java).apply {
-                action = Intent.ACTION_MAIN
-                data = Uri.parse("irondiscipline://alarm_ring/followup_5min/direct")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    identifier = "followup_direct"
-                }
-                putExtra(EXTRA_ALARM_ID, "FOLLOWUP_5MIN_ALARM")
-                putExtra("EXTRA_ALARM_ID", "FOLLOWUP_5MIN_ALARM")
-                putExtra(EXTRA_ALARM_LABEL, "5-Min Wake-Up Verification")
-                putExtra("EXTRA_ALARM_LABEL", "5-Min Wake-Up Verification")
-                putExtra(EXTRA_SOUND_INDEX, soundIndex)
-                putExtra("EXTRA_SOUND_INDEX", soundIndex)
-                putExtra("EXTRA_IS_FOLLOWUP_ALARM", true)
-                putExtra("EXTRA_FOLLOWUP_CODE", fiveDigitCode)
-                putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-            }
-            val directPendingIntent = PendingIntent.getActivity(
-                context,
-                999991,
-                directActivityIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            try {
-                alarmManager.setAlarmClock(
-                    AlarmManager.AlarmClockInfo(triggerAtMillis, directPendingIntent),
-                    directPendingIntent
-                )
-                Log.i(TAG, "[IronAlarmTrace:FOLLOWUP_SCHEDULE] 5-minute follow-up direct activity scheduled for epoch=$triggerAtMillis, code=$fiveDigitCode")
-            } catch (se: SecurityException) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, directPendingIntent)
-                    } else {
-                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, directPendingIntent)
-                    }
-                } catch (_: Exception) {}
-            } catch (e: Exception) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, directPendingIntent)
-                    } else {
-                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, directPendingIntent)
-                    }
-                } catch (_: Exception) {}
-            }
-
-            // Trigger 3 — Backup Broadcast Trigger (at triggerAtMillis)
-            val triggerIntent = Intent(context, AlarmReceiver::class.java).apply {
-                action = ACTION_TRIGGER_ALARM
-                data = Uri.parse("irondiscipline://alarm/followup_5min")
-                putExtra(EXTRA_ALARM_ID, "FOLLOWUP_5MIN_ALARM")
-                putExtra("EXTRA_ALARM_ID", "FOLLOWUP_5MIN_ALARM")
-                putExtra(EXTRA_ALARM_LABEL, "5-Min Wake-Up Verification")
-                putExtra("EXTRA_ALARM_LABEL", "5-Min Wake-Up Verification")
-                putExtra(EXTRA_SOUND_INDEX, soundIndex)
-                putExtra("EXTRA_SOUND_INDEX", soundIndex)
-                putExtra("EXTRA_IS_FOLLOWUP_ALARM", true)
-                putExtra("EXTRA_FOLLOWUP_CODE", fiveDigitCode)
-                putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                addFlags(Intent.FLAG_RECEIVER_FOREGROUND or Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-            }
-            val backupPendingIntent = PendingIntent.getBroadcast(
-                context,
-                999993,
-                triggerIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, backupPendingIntent)
-                } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, backupPendingIntent)
-                }
-            } catch (_: Exception) {}
-        }
-
-        /**
-         * Clears the pending 5-minute follow-up alarm and releases any waiting wakelocks.
+         * Clears any pending legacy 5-minute follow-up alarm and releases waiting wakelocks.
          */
         fun clearFollowUpAlarm(context: Context) {
             val prefs = context.getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
@@ -279,6 +127,7 @@ class AlarmScheduler(private val context: Context) {
             putExtra("EXTRA_SOUND_INDEX", alarm.soundIndex)
             putExtra(EXTRA_DELETE_AFTER_RINGING, alarm.deleteAfterRinging)
             putExtra("EXTRA_DELETE_AFTER_RINGING", alarm.deleteAfterRinging)
+            putExtra(EXTRA_QUESTION_COUNT, alarm.questionCount.coerceIn(1, 100))
             putExtra("EXTRA_IS_NEW_TRIGGER", true)
             if (isPreWake) {
                 putExtra("EXTRA_PRE_WAKE_COUNTDOWN_MS", preWakeCountdownMs)
@@ -311,6 +160,7 @@ class AlarmScheduler(private val context: Context) {
             putExtra("EXTRA_SOUND_INDEX", alarm.soundIndex)
             putExtra(EXTRA_DELETE_AFTER_RINGING, alarm.deleteAfterRinging)
             putExtra("EXTRA_DELETE_AFTER_RINGING", alarm.deleteAfterRinging)
+            putExtra(EXTRA_QUESTION_COUNT, alarm.questionCount.coerceIn(1, 100))
             putExtra("EXTRA_IS_NEW_TRIGGER", true)
             addFlags(Intent.FLAG_RECEIVER_FOREGROUND or Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         }
@@ -344,6 +194,13 @@ class AlarmScheduler(private val context: Context) {
             Log.e(TAG, "[IronAlarmTrace:STAGE2_SCHEDULE_ERROR] AlarmManager service is null, cannot schedule alarm ID=${alarm.id}")
             return
         }
+
+        val questionCount = alarm.questionCount.coerceIn(1, 100)
+        context.getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putInt("alarm_question_count_${alarm.id}", questionCount)
+            .putInt("active_ringing_question_count", questionCount)
+            .commit()
 
         val nextTriggerMs = calculateNextTriggerEpochMs(alarm)
         val nowMs = System.currentTimeMillis()
@@ -522,6 +379,7 @@ class AlarmScheduler(private val context: Context) {
             putExtra("EXTRA_SOUND_INDEX", alarm.soundIndex)
             putExtra(EXTRA_DELETE_AFTER_RINGING, alarm.deleteAfterRinging)
             putExtra("EXTRA_DELETE_AFTER_RINGING", alarm.deleteAfterRinging)
+            putExtra(EXTRA_QUESTION_COUNT, alarm.questionCount.coerceIn(1, 100))
             putExtra("EXTRA_IS_NEW_TRIGGER", true)
             addFlags(Intent.FLAG_RECEIVER_FOREGROUND or Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         }

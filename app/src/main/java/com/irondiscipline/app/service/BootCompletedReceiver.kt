@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.irondiscipline.app.alarm.AlarmRepository
+import com.irondiscipline.app.alarm.AlarmScheduler
 import com.irondiscipline.app.util.PermissionHelper
 import com.irondiscipline.app.util.RealtimeQuotaManager
 import com.irondiscipline.app.util.SecurityPinManager
@@ -31,6 +32,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 PenaltyLockScheduler.rescheduleActivePenaltyAlarms(context)
             } catch (_: Exception) {}
             try {
+                AlarmScheduler.clearFollowUpAlarm(context)
                 AlarmRepository.getInstance(context).rescheduleAllActiveAlarms()
             } catch (_: Exception) {}
         }

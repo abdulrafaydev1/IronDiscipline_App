@@ -86,40 +86,58 @@ class AlarmReceiver : BroadcastReceiver() {
             }
 
             else -> {
-                val prefs = context.getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
-                val isFollowUp = safeIntent.getBooleanExtra("EXTRA_IS_FOLLOWUP_ALARM", false) ||
-                    alarmId == "FOLLOWUP_5MIN_ALARM"
-                val followUpCode = safeIntent.getStringExtra("EXTRA_FOLLOWUP_CODE")
-                    ?: prefs.getString("followup_alarm_code", "") ?: ""
-
-                if (isFollowUp) {
-                    prefs.edit()
-                        .putBoolean("followup_alarm_pending", false)
-                        .putBoolean("is_current_ring_followup", true)
-                        .commit()
-                    Log.i(TAG, "[IronAlarmTrace:STAGE3_RECEIVER] 5-Min Follow-Up Alarm Triggered! Code=$followUpCode")
+                if (alarmId == "FOLLOWUP_5MIN_ALARM") {
+                    AlarmScheduler.clearFollowUpAlarm(context)
+                    AlarmWakeLockManager.releaseAll()
+                    return
                 }
 
-                // Record timestamp to avoid duplicate triggers within 60s from watchdog
-                prefs.edit().putLong("last_triggered_timestamp_$alarmId", now).commit()
+                val prefs = context.getSharedPreferences("iron_discipline_prefs", Context.MODE_PRIVATE)
+                val alarm = try {
+                    AlarmRepository.getInstance(context).getAlarmById(alarmId)
+                } catch (_: Exception) {
+                    null
+                }
+                val intentQuestionCount = if (safeIntent.hasExtra(AlarmScheduler.EXTRA_QUESTION_COUNT)) {
+                    safeIntent.getIntExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, -1)
+                } else {
+                    -1
+                }
+                val questionCount = (when {
+                    intentQuestionCount in 1..100 -> intentQuestionCount
+                    alarm != null -> alarm.questionCount
+                    else -> prefs.getInt(
+                        "alarm_question_count_$alarmId",
+                        prefs.getInt("active_ringing_question_count", 5)
+                    )
+                }).coerceIn(1, 100)
+
+                // Record timestamp and selected math question count synchronously via .commit()
+                prefs.edit()
+                    .putLong("last_triggered_timestamp_$alarmId", now)
+                    .putInt("alarm_question_count_$alarmId", questionCount)
+                    .putInt("active_ringing_question_count", questionCount)
+                    .putBoolean("followup_alarm_pending", false)
+                    .putBoolean("is_current_ring_followup", false)
+                    .commit()
 
                 // Initialize persistent Math Hard questions session state for this alarm
-                ActiveAlarmSessionState.initSession(alarmId)
+                ActiveAlarmSessionState.initSession(alarmId, questionCount)
 
                 // Start Foreground Ringing Service (High Priority Audio & 100% Volume Guard)
                 val serviceIntent = Intent(context, AlarmRingingService::class.java).apply {
                     putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId)
+                    putExtra("EXTRA_ALARM_ID", alarmId)
                     putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, alarmLabel)
                     putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, soundIndex)
                     putExtra(AlarmScheduler.EXTRA_DELETE_AFTER_RINGING, deleteAfter)
+                    putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, questionCount)
                     putExtra(EXTRA_RECEIVER_TRIGGER_MS, now)
                     putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                    putExtra("EXTRA_IS_FOLLOWUP_ALARM", isFollowUp)
-                    putExtra("EXTRA_FOLLOWUP_CODE", followUpCode)
                 }
                 try {
                     ContextCompat.startForegroundService(context, serviceIntent)
-                    Log.i(TAG, "[IronAlarmTrace:STAGE3_SERVICE_CALLED] ContextCompat.startForegroundService dispatched for Alarm ID=$alarmId")
+                    Log.i(TAG, "[IronAlarmTrace:STAGE3_SERVICE_CALLED] ContextCompat.startForegroundService dispatched for Alarm ID=$alarmId, questionCount=$questionCount")
                 } catch (e: Exception) {
                     Log.e(TAG, "[IronAlarmTrace:STAGE3_SERVICE_ERROR] Failed to start AlarmRingingService: ${e.message}", e)
                 }
@@ -127,13 +145,13 @@ class AlarmReceiver : BroadcastReceiver() {
                 // Also launch AlarmRingingActivity directly over lock screen
                 val activityIntent = Intent(context, AlarmRingingActivity::class.java).apply {
                     putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId)
+                    putExtra("EXTRA_ALARM_ID", alarmId)
                     putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, alarmLabel)
                     putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, soundIndex)
                     putExtra(AlarmScheduler.EXTRA_DELETE_AFTER_RINGING, deleteAfter)
+                    putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, questionCount)
                     putExtra(EXTRA_RECEIVER_TRIGGER_MS, now)
                     putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                    putExtra("EXTRA_IS_FOLLOWUP_ALARM", isFollowUp)
-                    putExtra("EXTRA_FOLLOWUP_CODE", followUpCode)
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_SINGLE_TOP or

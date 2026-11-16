@@ -687,9 +687,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         try {
             val alarms = AlarmRepository.getInstance(applicationContext).alarmsFlow.value
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val isFollowUpPending = prefs.getBoolean("followup_alarm_pending", false)
-            val followUpTriggerMs = prefs.getLong("followup_alarm_trigger_ms", 0L)
-            val hasEnabledAlarms = alarms.any { it.isEnabled } || isFollowUpPending
+            if (prefs.getBoolean("followup_alarm_pending", false) || prefs.getBoolean("is_current_ring_followup", false)) {
+                AlarmScheduler.clearFollowUpAlarm(applicationContext)
+            }
+            val hasEnabledAlarms = alarms.any { it.isEnabled }
 
             // Keeps CPU ticking via maintainPendingAlarmCpuLock so 1s timer never freezes during screen-off sleep
             AlarmWakeLockManager.maintainPendingAlarmCpuLock(this, hasEnabledAlarms)
@@ -700,79 +701,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
             val now = System.currentTimeMillis()
 
-            // 1. Follow-Up 5-Minute Alarm Pre-Wake (5s Early) & Exact Trigger
-            if (isFollowUpPending && followUpTriggerMs > 0L) {
-                val deltaFollowUp = followUpTriggerMs - now
-                if (deltaFollowUp in 1L..5000L) {
-                    // Pre-wake physical screen 5 seconds BEFORE follow-up alarm time!
-                    AlarmWakeLockManager.acquireRingingWakeLocks(this)
-                    Log.d("IronAlarmTrace", "[IronAlarmTrace:FOLLOWUP_PRE_WAKE_WATCHDOG] Pre-waking screen 5s before follow-up alarm (remaining=${deltaFollowUp}ms)")
-                }
-
-                if (now >= followUpTriggerMs) {
-                    val followUpCode = prefs.getString("followup_alarm_code", "") ?: ""
-                    val soundIndex = prefs.getInt("followup_alarm_sound_index", 0)
-                    val label = prefs.getString("followup_alarm_label", "5-Min Wake-Up Verification") ?: "5-Min Wake-Up Verification"
-
-                    prefs.edit()
-                        .putBoolean("followup_alarm_pending", false)
-                        .putBoolean("is_current_ring_followup", true)
-                        .commit()
-
-                    Log.i("IronAlarmTrace", "[IronAlarmTrace:FOLLOWUP_WATCHDOG_TRIGGER] 5-Min Follow-Up Alarm Triggering now=$now, target=$followUpTriggerMs, code=$followUpCode")
-
-                    // Physically wake screen ON
-                    AlarmWakeLockManager.acquireRingingWakeLocks(this)
-
-                    // Initialize persistent math problem session state
-                    ActiveAlarmSessionState.initSession("FOLLOWUP_5MIN_ALARM")
-
-                    // Start AlarmRingingService in foreground
-                    val serviceIntent = Intent(applicationContext, AlarmRingingService::class.java).apply {
-                        putExtra(AlarmScheduler.EXTRA_ALARM_ID, "FOLLOWUP_5MIN_ALARM")
-                        putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, label)
-                        putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, soundIndex)
-                        putExtra("EXTRA_IS_FOLLOWUP_ALARM", true)
-                        putExtra("EXTRA_FOLLOWUP_CODE", followUpCode)
-                        putExtra(AlarmReceiver.EXTRA_RECEIVER_TRIGGER_MS, now)
-                        putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                    }
-                    ContextCompat.startForegroundService(applicationContext, serviceIntent)
-
-                    // Launch AlarmRingingActivity directly
-                    val activityIntent = Intent(applicationContext, AlarmRingingActivity::class.java).apply {
-                        putExtra(AlarmScheduler.EXTRA_ALARM_ID, "FOLLOWUP_5MIN_ALARM")
-                        putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, label)
-                        putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, soundIndex)
-                        putExtra("EXTRA_IS_FOLLOWUP_ALARM", true)
-                        putExtra("EXTRA_FOLLOWUP_CODE", followUpCode)
-                        putExtra(AlarmReceiver.EXTRA_RECEIVER_TRIGGER_MS, now)
-                        putExtra("EXTRA_IS_NEW_TRIGGER", true)
-                        addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK or
-                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        )
-                    }
-                    try {
-                        startActivity(activityIntent)
-                    } catch (e: Exception) {
-                        Log.e("IronAlarmTrace", "[IronAlarmTrace:FOLLOWUP_ACTIVITY_ERROR] Error starting follow-up AlarmRingingActivity: ${e.message}")
-                    }
-                    return
-                }
-            }
-
             for (alarm in alarms) {
                 if (!alarm.isEnabled) continue
                 val triggerAt = alarm.nextTriggerAtMillis
                 if (triggerAt <= 0L) continue
 
+                val questionCount = alarm.questionCount.coerceIn(1, 100)
                 val delta = triggerAt - now
                 if (delta in 1L..5000L) {
                     // Pre-wake physical screen 5 seconds BEFORE scheduled alarm time!
                     AlarmWakeLockManager.acquireRingingWakeLocks(this)
-                    Log.d("IronAlarmTrace", "[IronAlarmTrace:PRE_WAKE_WATCHDOG] Pre-waking screen 5s before Alarm ID=${alarm.id} (remaining=${delta}ms)")
+                    prefs.edit()
+                        .putInt("alarm_question_count_${alarm.id}", questionCount)
+                        .putInt("active_ringing_question_count", questionCount)
+                        .commit()
+                    Log.d("IronAlarmTrace", "[IronAlarmTrace:PRE_WAKE_WATCHDOG] Pre-waking screen 5s before Alarm ID=${alarm.id} (remaining=${delta}ms, questionCount=$questionCount)")
                 }
 
                 // Check if trigger time has arrived (allow up to 15-minute catch-up window)
@@ -782,21 +725,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
                     // Ensure this alarm hasn't fired in the last 60 seconds
                     if (now - lastTriggered > 60_000L) {
-                        prefs.edit().putLong(lastTriggeredKey, now).commit()
-                        Log.i("IronAlarmTrace", "[IronAlarmTrace:WATCHDOG_TRIGGER] Backup watchdog triggering Alarm ID=${alarm.id}, drift=${now - triggerAt}ms")
+                        prefs.edit()
+                            .putLong(lastTriggeredKey, now)
+                            .putInt("alarm_question_count_${alarm.id}", questionCount)
+                            .putInt("active_ringing_question_count", questionCount)
+                            .commit()
+                        Log.i("IronAlarmTrace", "[IronAlarmTrace:WATCHDOG_TRIGGER] Backup watchdog triggering Alarm ID=${alarm.id}, drift=${now - triggerAt}ms, questionCount=$questionCount")
 
                         // 1. Physically turn the screen ON from sleep!
                         AlarmWakeLockManager.acquireRingingWakeLocks(this)
 
-                        // 2. Initialize persistent session state
-                        ActiveAlarmSessionState.initSession(alarm.id)
+                        // 2. Initialize persistent session state with selected questionCount
+                        ActiveAlarmSessionState.initSession(alarm.id, questionCount)
 
                         // 3. Immediately start AlarmRingingService in foreground
                         val serviceIntent = Intent(applicationContext, AlarmRingingService::class.java).apply {
                             putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarm.id)
+                            putExtra("EXTRA_ALARM_ID", alarm.id)
                             putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, alarm.label)
                             putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, alarm.soundIndex)
                             putExtra(AlarmScheduler.EXTRA_DELETE_AFTER_RINGING, alarm.deleteAfterRinging)
+                            putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, questionCount)
                             putExtra(AlarmReceiver.EXTRA_RECEIVER_TRIGGER_MS, now)
                             putExtra("EXTRA_IS_NEW_TRIGGER", true)
                         }
@@ -805,9 +754,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         // 4. Launch AlarmRingingActivity directly (AccessibilityService has unrestricted background launch permission)
                         val activityIntent = Intent(applicationContext, AlarmRingingActivity::class.java).apply {
                             putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarm.id)
+                            putExtra("EXTRA_ALARM_ID", alarm.id)
                             putExtra(AlarmScheduler.EXTRA_ALARM_LABEL, alarm.label)
                             putExtra(AlarmScheduler.EXTRA_SOUND_INDEX, alarm.soundIndex)
                             putExtra(AlarmScheduler.EXTRA_DELETE_AFTER_RINGING, alarm.deleteAfterRinging)
+                            putExtra(AlarmScheduler.EXTRA_QUESTION_COUNT, questionCount)
                             putExtra(AlarmReceiver.EXTRA_RECEIVER_TRIGGER_MS, now)
                             putExtra("EXTRA_IS_NEW_TRIGGER", true)
                             addFlags(

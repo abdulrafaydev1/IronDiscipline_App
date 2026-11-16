@@ -20,6 +20,11 @@ class AlarmRepository(private val context: Context) {
         Context.MODE_PRIVATE
     )
 
+    private val appPrefs: SharedPreferences = context.applicationContext.getSharedPreferences(
+        "iron_discipline_prefs",
+        Context.MODE_PRIVATE
+    )
+
     private val scheduler = AlarmScheduler.getInstance(context)
 
     private val _alarmsFlow = MutableStateFlow<List<AlarmItem>>(emptyList())
@@ -61,6 +66,21 @@ class AlarmRepository(private val context: Context) {
 
         // Sort by time (hour, minute)
         loadedList.sortWith(compareBy({ it.hour }, { it.minute }))
+        // Ensure per-alarm questionCount is mirrored in iron_discipline_prefs for upgrades/receivers
+        if (loadedList.isNotEmpty()) {
+            val editor = appPrefs.edit()
+            var needsCommit = false
+            for (item in loadedList) {
+                val key = "alarm_question_count_${item.id}"
+                if (!appPrefs.contains(key)) {
+                    editor.putInt(key, item.questionCount.coerceIn(1, 100))
+                    needsCommit = true
+                }
+            }
+            if (needsCommit) {
+                editor.commit()
+            }
+        }
         _alarmsFlow.value = loadedList
     }
 
@@ -78,12 +98,20 @@ class AlarmRepository(private val context: Context) {
 
     @Synchronized
     fun saveAlarm(alarm: AlarmItem) {
+        val sanitizedCount = alarm.questionCount.coerceIn(1, 100)
         val nextTriggerMs = if (alarm.isEnabled) scheduler.calculateNextTriggerEpochMs(alarm) else 0L
-        val alarmWithTrigger = alarm.copy(nextTriggerAtMillis = nextTriggerMs)
+        val alarmWithTrigger = alarm.copy(
+            nextTriggerAtMillis = nextTriggerMs,
+            questionCount = sanitizedCount
+        )
+
+        appPrefs.edit()
+            .putInt("alarm_question_count_${alarmWithTrigger.id}", sanitizedCount)
+            .commit()
 
         Log.i(
             TAG,
-            "[IronAlarmTrace:STAGE1_SAVE] Alarm ID=${alarmWithTrigger.id}, time=${alarmWithTrigger.formattedTime}, isEnabled=${alarmWithTrigger.isEnabled}, triggerEpoch=$nextTriggerMs, repeatDays=${alarmWithTrigger.repeatDays.size}"
+            "[IronAlarmTrace:STAGE1_SAVE] Alarm ID=${alarmWithTrigger.id}, time=${alarmWithTrigger.formattedTime}, isEnabled=${alarmWithTrigger.isEnabled}, triggerEpoch=$nextTriggerMs, repeatDays=${alarmWithTrigger.repeatDays.size}, questionCount=$sanitizedCount"
         )
 
         val current = _alarmsFlow.value.toMutableList()
@@ -105,6 +133,7 @@ class AlarmRepository(private val context: Context) {
     @Synchronized
     fun deleteAlarm(alarmId: String) {
         scheduler.cancelAlarm(alarmId)
+        appPrefs.edit().remove("alarm_question_count_$alarmId").commit()
         val current = _alarmsFlow.value.toMutableList()
         current.removeAll { it.id == alarmId }
         saveAlarmsToPrefs(current)

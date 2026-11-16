@@ -37,9 +37,11 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
@@ -96,6 +98,7 @@ import com.irondiscipline.app.util.PermissionHelper
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun AlarmScreen(
@@ -105,6 +108,7 @@ fun AlarmScreen(
     val context = LocalContext.current
     val alarms by alarmRepository.alarmsFlow.collectAsState()
     var isCreateDialogOpen by remember { mutableStateOf(false) }
+    var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
 
     // Live calculation of next upcoming alarm
     var nextAlarmRemainingMs by remember { mutableStateOf<Long?>(null) }
@@ -284,7 +288,10 @@ fun AlarmScreen(
                     }
 
                     Button(
-                        onClick = { isCreateDialogOpen = true },
+                        onClick = {
+                            editingAlarm = null
+                            isCreateDialogOpen = true
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent
                         ),
@@ -318,7 +325,12 @@ fun AlarmScreen(
             // Alarms List or Empty State
             if (alarms.isEmpty()) {
                 item {
-                    EmptyAlarmsCard(onSetAlarm = { isCreateDialogOpen = true })
+                    EmptyAlarmsCard(
+                        onSetAlarm = {
+                            editingAlarm = null
+                            isCreateDialogOpen = true
+                        }
+                    )
                 }
             } else {
                 items(
@@ -327,6 +339,10 @@ fun AlarmScreen(
                 ) { alarm ->
                     AlarmItemCard(
                         alarm = alarm,
+                        onEdit = {
+                            editingAlarm = alarm
+                            isCreateDialogOpen = true
+                        },
                         onToggle = { isEnabled ->
                             alarmRepository.toggleAlarm(alarm.id, isEnabled)
                         },
@@ -338,16 +354,19 @@ fun AlarmScreen(
             }
         }
 
-        // Dialog for creating new alarm
+        // Dialog for creating or editing an alarm
         if (isCreateDialogOpen) {
             CreateAlarmDialog(
+                existingAlarm = editingAlarm,
                 onDismiss = {
                     HardAlarmSoundEngine.getInstance().stopSound()
+                    editingAlarm = null
                     isCreateDialogOpen = false
                 },
-                onSave = { newAlarm ->
+                onSave = { savedAlarm ->
                     HardAlarmSoundEngine.getInstance().stopSound()
-                    alarmRepository.saveAlarm(newAlarm)
+                    alarmRepository.saveAlarm(savedAlarm)
+                    editingAlarm = null
                     isCreateDialogOpen = false
                 }
             )
@@ -629,6 +648,7 @@ fun NextAlarmHeroBanner(
 @Composable
 fun AlarmItemCard(
     alarm: AlarmItem,
+    onEdit: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -639,9 +659,10 @@ fun AlarmItemCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onEdit)
                 .padding(18.dp)
         ) {
-            // Top Row: 36.sp Monospace Time, Label, and Toggle Switch
+            // Top Row: 36.sp Monospace Time, Label, Edit, Switch, Delete
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -667,8 +688,22 @@ fun AlarmItemCard(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .jellyElastic(baseCornerRadius = 17.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Alarm",
+                            tint = LuxurySapphireCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
                     Switch(
                         checked = alarm.isEnabled,
                         onCheckedChange = onToggle,
@@ -719,28 +754,12 @@ fun AlarmItemCard(
                     backgroundColor = if (alarm.isEnabled) LuxuryCrimsonAlert.copy(alpha = 0.14f) else Color(0xFF151821)
                 )
 
-                // 5 Math (+ / -) Challenge Badge
+                // Configurable Math (+ / -) Challenge Badge
                 BadgePill(
                     icon = null,
-                    text = "🧮 5 Math (+ / -)",
+                    text = "🧮 ${alarm.questionCount} Math ${if (alarm.questionCount == 1) "Question" else "Questions"} (+ / -)",
                     textColor = if (alarm.isEnabled) LuxuryChampagneGold else Color(0xFF64748B),
                     backgroundColor = if (alarm.isEnabled) LuxuryChampagneGold.copy(alpha = 0.14f) else Color(0xFF151821)
-                )
-
-                // 10s 5-Digit Code Badge
-                BadgePill(
-                    icon = null,
-                    text = "🔢 10s 5-Digit Code",
-                    textColor = if (alarm.isEnabled) LuxurySapphireCyan else Color(0xFF64748B),
-                    backgroundColor = if (alarm.isEnabled) LuxurySapphireCyan.copy(alpha = 0.14f) else Color(0xFF151821)
-                )
-
-                // 5m Follow-Up Check Badge
-                BadgePill(
-                    icon = null,
-                    text = "⏰ 5m Follow-Up Check",
-                    textColor = if (alarm.isEnabled) LuxuryTacticalEmerald else Color(0xFF64748B),
-                    backgroundColor = if (alarm.isEnabled) LuxuryTacticalEmerald.copy(alpha = 0.14f) else Color(0xFF151821)
                 )
 
                 // Auto Delete Badge
@@ -891,7 +910,7 @@ fun EmptyAlarmsCard(onSetAlarm: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Set an unyielding alarm protocol with 12 high-decibel sounds, 5 Math (+/-) questions, 10s memory code & 5m follow-up verification.",
+                text = "Set an unyielding alarm protocol with 12 high-decibel sounds and customizable Math (+ / -) dismissal challenges (1 to 100 questions).",
                 color = LuxuryPlatinumSubtitle,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -921,20 +940,21 @@ fun EmptyAlarmsCard(onSetAlarm: () -> Unit) {
 }
 
 /**
- * Full Obsidian Luxury Dialog for Creating a new Hard Alarm.
+ * Full Obsidian Luxury Dialog for Creating or Editing a Hard Alarm.
  */
 @Composable
 fun CreateAlarmDialog(
+    existingAlarm: AlarmItem? = null,
     onDismiss: () -> Unit,
     onSave: (AlarmItem) -> Unit
 ) {
     val context = LocalContext.current
     val is24Hour = remember { DateFormat.is24HourFormat(context) }
     val now = remember { Calendar.getInstance() }
-    val initialHour24 = remember { now.get(Calendar.HOUR_OF_DAY) }
-    val initialMinute = remember { now.get(Calendar.MINUTE) }
+    val initialHour24 = remember(existingAlarm) { existingAlarm?.hour ?: now.get(Calendar.HOUR_OF_DAY) }
+    val initialMinute = remember(existingAlarm) { existingAlarm?.minute ?: now.get(Calendar.MINUTE) }
 
-    var hour12 by remember {
+    var hour12 by remember(existingAlarm) {
         mutableIntStateOf(
             when {
                 initialHour24 == 0 -> 12
@@ -943,14 +963,17 @@ fun CreateAlarmDialog(
             }
         )
     }
-    var hour24 by remember { mutableIntStateOf(initialHour24) }
-    var minute by remember { mutableIntStateOf(initialMinute) }
-    var isPm by remember { mutableStateOf(initialHour24 >= 12) }
+    var hour24 by remember(existingAlarm) { mutableIntStateOf(initialHour24) }
+    var minute by remember(existingAlarm) { mutableIntStateOf(initialMinute) }
+    var isPm by remember(existingAlarm) { mutableStateOf(initialHour24 >= 12) }
 
-    var label by remember { mutableStateOf("Hard Discipline Wake-Up") }
-    var repeatDays by remember { mutableStateOf(setOf<Int>()) }
-    var deleteAfterRinging by remember { mutableStateOf(false) }
-    var selectedSoundIndex by remember { mutableIntStateOf(0) }
+    var label by remember(existingAlarm) { mutableStateOf(existingAlarm?.label ?: "Hard Discipline Wake-Up") }
+    var repeatDays by remember(existingAlarm) { mutableStateOf(existingAlarm?.repeatDays ?: setOf<Int>()) }
+    var deleteAfterRinging by remember(existingAlarm) { mutableStateOf(existingAlarm?.deleteAfterRinging ?: false) }
+    var selectedSoundIndex by remember(existingAlarm) { mutableIntStateOf(existingAlarm?.soundIndex ?: 0) }
+    var selectedQuestionCount by remember(existingAlarm) {
+        mutableIntStateOf((existingAlarm?.questionCount ?: 5).coerceIn(1, 100))
+    }
 
     var previewingSoundIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -988,7 +1011,7 @@ fun CreateAlarmDialog(
                 ) {
                     Column {
                         Text(
-                            text = "NEW DISCIPLINE ALARM",
+                            text = if (existingAlarm != null) "EDIT DISCIPLINE ALARM" else "NEW DISCIPLINE ALARM",
                             color = Color.White,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
@@ -1066,8 +1089,16 @@ fun CreateAlarmDialog(
                         }
                     )
 
-                    // 4. Brain Mission Enforced: Math Hard (5 Multi-Digit Equations Mandatory)
-                    BrainMissionEnforcedCard()
+                    // 4. Math Questions Count Selector (1, 2, 3, 5, 10, 20, 30, 50, 100 presets + -/+ stepper)
+                    MathQuestionCountSelectorCard(
+                        selectedCount = selectedQuestionCount,
+                        onCountChange = { count ->
+                            selectedQuestionCount = count.coerceIn(1, 100)
+                        }
+                    )
+
+                    // 5. Brain Mission Enforced: Math Hard (+ / - Equations Mandatory)
+                    BrainMissionEnforcedCard(questionCount = selectedQuestionCount)
 
                     // 5. 12 Hard Synthesized Alarm Sounds with Preview
                     SoundSelectorCard(
@@ -1130,6 +1161,7 @@ fun CreateAlarmDialog(
                             }
 
                             val item = AlarmItem(
+                                id = existingAlarm?.id ?: UUID.randomUUID().toString(),
                                 hour = calculated24Hour,
                                 minute = minute,
                                 isEnabled = true,
@@ -1141,7 +1173,8 @@ fun CreateAlarmDialog(
                                 snoozeMinutes = 0,
                                 vibrateWhileRinging = true,
                                 dismissChallenge = "MATH_HARD",
-                                maxVolumeOverride = true
+                                maxVolumeOverride = true,
+                                questionCount = selectedQuestionCount.coerceIn(1, 100)
                             )
                             onSave(item)
                         },
@@ -1423,8 +1456,190 @@ fun RepeatDaysSelector(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BrainMissionEnforcedCard() {
+fun MathQuestionCountSelectorCard(
+    selectedCount: Int,
+    onCountChange: (Int) -> Unit
+) {
+    val presetCounts = remember { listOf(1, 2, 3, 5, 10, 20, 30, 50, 100) }
+    val clampedCount = selectedCount.coerceIn(1, 100)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121824)),
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    LuxuryChampagneGold.copy(alpha = 0.55f),
+                    LuxurySapphireCyan.copy(alpha = 0.45f)
+                )
+            )
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "🧮 Math Questions to Stop Alarm",
+                    color = LuxuryChampagneGold,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = "Tap a preset or use − / + to set any count between 1 and 100",
+                    color = LuxuryPlatinumSubtitle,
+                    fontSize = 10.sp
+                )
+            }
+
+            // Stepper controls next to current count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0B101A))
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                LuxuryChampagneGold.copy(alpha = 0.5f),
+                                LuxurySapphireCyan.copy(alpha = 0.5f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // '-' Stepper Button
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .jellyElastic(baseCornerRadius = 10.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (clampedCount > 1) Color(0xFF182235) else Color(0xFF111723))
+                        .border(
+                            width = 1.dp,
+                            color = if (clampedCount > 1) LuxuryChampagneGold.copy(alpha = 0.65f) else Color(0xFF1E293B),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .clickable(enabled = clampedCount > 1) {
+                            onCountChange((clampedCount - 1).coerceIn(1, 100))
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = "Decrease Math Questions",
+                        tint = if (clampedCount > 1) LuxuryChampagneGold else Color(0xFF475569),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$clampedCount",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = if (clampedCount == 1) "Question (+ / -)" else "Questions (+ / -)",
+                        color = LuxurySapphireCyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // '+' Stepper Button
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .jellyElastic(baseCornerRadius = 10.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (clampedCount < 100) Color(0xFF182235) else Color(0xFF111723))
+                        .border(
+                            width = 1.dp,
+                            color = if (clampedCount < 100) LuxurySapphireCyan.copy(alpha = 0.7f) else Color(0xFF1E293B),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .clickable(enabled = clampedCount < 100) {
+                            onCountChange((clampedCount + 1).coerceIn(1, 100))
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Increase Math Questions",
+                        tint = if (clampedCount < 100) LuxurySapphireCyan else Color(0xFF475569),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            // Responsive Multi-Row Flow of Preset Chips: 1, 2, 3, 5, 10, 20, 30, 50, 100
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                presetCounts.forEach { count ->
+                    val isSelected = clampedCount == count
+                    val chipBorderBrush = if (isSelected) {
+                        Brush.linearGradient(listOf(LuxuryChampagneGold, LuxurySapphireCyan))
+                    } else {
+                        Brush.linearGradient(listOf(Color(0xFF2B3B56), Color(0xFF1E293B)))
+                    }
+                    val chipFillBrush = if (isSelected) {
+                        Brush.horizontalGradient(
+                            listOf(
+                                LuxuryChampagneGold.copy(alpha = 0.30f),
+                                LuxurySapphireCyan.copy(alpha = 0.24f)
+                            )
+                        )
+                    } else {
+                        Brush.horizontalGradient(listOf(Color(0xFF161E2E), Color(0xFF121824)))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .jellyElastic(baseCornerRadius = 10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(chipFillBrush)
+                            .border(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                brush = chipBorderBrush,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { onCountChange(count) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "$count",
+                            color = if (isSelected) Color.White else LuxuryPlatinumSubtitle,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BrainMissionEnforcedCard(questionCount: Int = 5) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1486,7 +1701,7 @@ fun BrainMissionEnforcedCard() {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "🧠 5 Multi-Digit Equations: You must solve 5 multi-digit equations (e.g., (14 × 7) + 39) sequentially. Back button and simple dismiss are strictly locked until answered correctly.",
+                text = "🧠 $questionCount Addition/Subtraction ${if (questionCount == 1) "Equation" else "Equations"} (+ / -): Solve $questionCount equation${if (questionCount == 1) "" else "s"} sequentially to immediately stop the alarm. Back button and simple dismiss are strictly locked until answered correctly.",
                 color = Color(0xFFE2E8F0),
                 fontSize = 11.sp,
                 lineHeight = 16.sp

@@ -20,20 +20,29 @@ object ActiveAlarmSessionState {
     var activeAlarmId: String? = null
         private set
 
+    var totalQuestions by mutableIntStateOf(TOTAL_MATH_QUESTIONS)
     var solvedCount by mutableIntStateOf(0)
     var currentProblem by mutableStateOf<MathProblem?>(null)
     var problemsList: List<MathProblem> = emptyList()
 
     @Synchronized
-    fun initSession(alarmId: String?) {
+    fun initSession(alarmId: String?, questionCount: Int = TOTAL_MATH_QUESTIONS) {
+        val sanitizedCount = questionCount.coerceIn(1, 100)
         if (activeAlarmId == alarmId && problemsList.isNotEmpty() && currentProblem != null) {
-            // Existing session active, preserve solved questions and current equation
+            // Preserve solved progress across screen OFF/ON or orientation changes;
+            // only reconcile count before any question has been solved.
+            if (totalQuestions != sanitizedCount && solvedCount == 0) {
+                totalQuestions = sanitizedCount
+                problemsList = List(sanitizedCount) { generateHardMathProblem() }
+                currentProblem = problemsList.firstOrNull()
+            }
             return
         }
 
         activeAlarmId = alarmId
+        totalQuestions = sanitizedCount
         solvedCount = 0
-        problemsList = List(TOTAL_MATH_QUESTIONS) {
+        problemsList = List(sanitizedCount) {
             generateHardMathProblem()
         }
         currentProblem = problemsList.firstOrNull()
@@ -41,13 +50,13 @@ object ActiveAlarmSessionState {
 
     /**
      * Increments solved count and advances to the next question.
-     * Returns true when all 5 questions have been completed.
+     * Returns true when all selected questions have been completed.
      */
     @Synchronized
     fun onQuestionSolved(): Boolean {
         val nextSolved = solvedCount + 1
         solvedCount = nextSolved
-        if (nextSolved >= TOTAL_MATH_QUESTIONS) {
+        if (nextSolved >= totalQuestions) {
             return true
         }
         currentProblem = problemsList.getOrNull(nextSolved) ?: generateHardMathProblem()
@@ -57,6 +66,7 @@ object ActiveAlarmSessionState {
     @Synchronized
     fun clearSession() {
         activeAlarmId = null
+        totalQuestions = TOTAL_MATH_QUESTIONS
         solvedCount = 0
         currentProblem = null
         problemsList = emptyList()
